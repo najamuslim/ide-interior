@@ -1,7 +1,8 @@
-export default function appendNewToName(name: string) {
-  let insertPos = name.indexOf(".");
-  let newName = name
-    .substring(0, insertPos)
-    .concat("-new", name.substring(insertPos));
-  return newName;
+export default function appendNewToName(name: string | null) {
+  if (!name) return "generated-room.jpg";
+  
+  const insertPos = name.indexOf(".");
+  if (insertPos === -1) return `${name}-new.jpg`;
+  
+  return name.substring(0, insertPos).concat("-new", name.substring(insertPos));
 }

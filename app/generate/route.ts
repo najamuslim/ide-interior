@@ -13,7 +13,7 @@ const ratelimit = redis
   : undefined;
 
 export async function POST(request: Request) {
-  // Rate Limiter Code
+  //Rate Limiter Code
   if (ratelimit) {
     const headersList = headers();
     const ipIdentifier = headersList.get("x-real-ip");
@@ -34,14 +34,20 @@ export async function POST(request: Request) {
     }
   }
 
+  // Mock response untuk development
+  // return NextResponse.json([
+  //   "https://replicate.delivery/yhqm/m7zwtmCvSApaO1Y2KgOgbc2SxUaFR5dprFFNF01p4QjnSU7E/output_0.png",
+  //   "https://replicate.delivery/yhqm/GmGAf7frgzieYJJfDy2bR6e6qkOEyL044FImxJCEXwevnSU7E/output_1.png"
+  // ]);
+
+  // Comment real API call
   const { imageUrl, theme, room } = await request.json();
 
-  // POST request to Replicate to start the image restoration generation process
   let startResponse = await fetch("https://api.replicate.com/v1/predictions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Token " + process.env.REPLICATE_API_KEY,
+      Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
     },
     body: JSON.stringify({
       version:
@@ -73,7 +79,7 @@ export async function POST(request: Request) {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Token " + process.env.REPLICATE_API_KEY,
+        Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
       },
     });
     let jsonFinalResponse = await finalResponse.json();

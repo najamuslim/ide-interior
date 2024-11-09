@@ -1,30 +1,30 @@
 export type themeType =
   | "Modern"
   | "Vintage"
-  | "Minimalist"
-  | "Professional"
-  | "Tropical";
+  | "Minimalis"
+  | "Profesional"
+  | "Tropis";
 
 export type roomType =
-  | "Living Room"
-  | "Dining Room"
-  | "Bedroom"
-  | "Bathroom"
-  | "Office"
-  | "Gaming Room";
+  | "Ruang Tamu"
+  | "Ruang Makan"
+  | "Kamar Tidur"
+  | "Kamar Mandi"
+  | "Kantor"
+  | "Ruang Gaming";
 
 export const themes: themeType[] = [
   "Modern",
-  "Minimalist",
-  "Professional",
-  "Tropical",
+  "Minimalis",
+  "Profesional",
+  "Tropis",
   "Vintage",
 ];
 export const rooms: roomType[] = [
-  "Living Room",
-  "Dining Room",
-  "Office",
-  "Bedroom",
-  "Bathroom",
-  "Gaming Room",
+  "Ruang Tamu",
+  "Ruang Makan",
+  "Kantor",
+  "Kamar Tidur",
+  "Kamar Mandi",
+  "Ruang Gaming",
 ];

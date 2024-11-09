@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { UrlBuilder } from "@bytescale/sdk";
 import { UploadWidgetConfig } from "@bytescale/upload-widget";
 import { UploadDropzone } from "@bytescale/upload-widget-react";
@@ -16,33 +16,70 @@ import appendNewToName from "../../utils/appendNewToName";
 import downloadPhoto from "../../utils/downloadPhoto";
 import DropDown from "../../components/DropDown";
 import { roomType, rooms, themeType, themes } from "../../utils/dropdownTypes";
+import { useSearchParams, useRouter } from 'next/navigation';
+import { markInvoiceAsUsed, checkInvoiceUsage } from '../../utils/redis-helpers';
 
 const options: UploadWidgetConfig = {
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
-      ? process.env.NEXT_PUBLIC_UPLOAD_API_KEY
-      : "free",
+    ? process.env.NEXT_PUBLIC_UPLOAD_API_KEY
+    : "free",
   maxFileCount: 1,
   mimeTypes: ["image/jpeg", "image/png", "image/jpg"],
   editor: { images: { crop: false } },
   styles: {
     colors: {
-      primary: "#2563EB", // Primary buttons & links
-      error: "#d23f4d", // Error messages
-      shade100: "#fff", // Standard text
-      shade200: "#fffe", // Secondary button text
-      shade300: "#fffd", // Secondary button text (hover)
-      shade400: "#fffc", // Welcome text
-      shade500: "#fff9", // Modal close button
-      shade600: "#fff7", // Border
-      shade700: "#fff2", // Progress indicator background
-      shade800: "#fff1", // File item background
-      shade900: "#ffff", // Various (draggable crop buttons, etc.)
+      primary: "#2563EB",
+      error: "#d23f4d",
+      shade100: "#fff",
+      shade200: "#fffe",
+      shade300: "#fffd",
+      shade400: "#fffc",
+      shade500: "#fff9",
+      shade600: "#fff7",
+      shade700: "#fff2",
+      shade800: "#fff1",
+      shade900: "#ffff",
     },
+  },
+  locale: {
+    customValidationFailed: "Gagal memvalidasi file.",
+    orDragDropFile: "...atau drag dan drop file.",
+    orDragDropImage: "...atau drag dan drop gambar.",
+    processingFile: "Mengolah file...",
+    addAnotherFile: "Tambahkan file lain.",
+    addAnotherImage: "Tambahkan gambar lain.",
+    cancel: "Batal",
+    cancelInPreviewWindow: "Batal dalam jendela pratinjau",
+    unsupportedFileType: "Tipe file tidak didukung.",
+    uploadImage: "Unggah Gambar",
+    "cancelled!": "dibatalkan",
+    "error!": "kesalahan",
+    "removed!": "dihapus",
+    continue: "lanjutkan",
+    crop: "potong",
+    done: "selesai",
+    finish: "selesai",
+    finishIcon: true,
+    image: "gambar",
+    maxFilesReached: "jumlah file maksimum telah tercapai",
+    maxImagesReached: "jumlah gambar maksimum telah tercapai",
+    maxSize: "ukuran maksimum",
+    next: "berikutnya",
+    of: "dari",
+    orDragDropFiles: "...atau drag dan drop file",
+    orDragDropImages: "...atau drag dan drop gambar",
+    pleaseWait: "tolong tunggu",
+    remove: "hapus",
+    skip: "lewati",
+    uploadFile: "unggah file",
+    uploadFiles: "unggah file",
+    uploadImages: "unggah gambar",
   },
 };
 
 export default function DreamPage() {
-  const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [restoredImage, setRestoredImage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [restoredLoaded, setRestoredLoaded] = useState<boolean>(false);
@@ -50,7 +87,93 @@ export default function DreamPage() {
   const [error, setError] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string | null>(null);
   const [theme, setTheme] = useState<themeType>("Modern");
-  const [room, setRoom] = useState<roomType>("Living Room");
+  const [room, setRoom] = useState<roomType>("Ruang Tamu");
+  const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
+  const processedInvoiceRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const checkInvoice = async () => {
+      const status = searchParams.get('status');
+      const invoiceId = searchParams.get('invoice');
+      
+      if (!invoiceId || 
+          status !== 'success' || 
+          processedInvoiceRef.current === invoiceId) {
+        return;
+      }
+
+      processedInvoiceRef.current = invoiceId;
+      let isSubscribed = true;
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Check if invoice already used
+        const isUsed = await checkInvoiceUsage(invoiceId);
+        if (isUsed) {
+          setError("Invoice ini sudah digunakan");
+          setLoading(false);
+          return;
+        }
+
+        // Mark invoice as used BEFORE generating to prevent race conditions
+        await markInvoiceAsUsed(invoiceId);
+
+        // Get invoice data from Xendit
+        const response = await fetch(`/check-invoice?id=${invoiceId}`);
+        const invoice = await response.json();
+        
+        if (!isSubscribed) return;
+        
+        if (invoice.status === 'PAID' && invoice.metadata) {
+          // Set states from metadata
+          setTheme(invoice.metadata.theme as themeType);
+          setRoom(invoice.metadata.room as roomType);
+          setOriginalPhoto(invoice.metadata.originalPhoto);
+          
+          // Generate image
+          const res = await fetch("/generate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ 
+              imageUrl: invoice.metadata.originalPhoto,
+              theme: invoice.metadata.theme,
+              room: invoice.metadata.room
+            }),
+          });
+
+          if (!isSubscribed) return;
+
+          const newPhoto = await res.json();
+          if (res.status !== 200) {
+            setError(newPhoto);
+          } else {
+            setRestoredImage(newPhoto[1]);
+          }
+        } else {
+          setError("Pembayaran belum selesai");
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        if (isSubscribed) {
+          setError("Gagal memuat data pembayaran");
+        }
+      } finally {
+        if (isSubscribed) {
+          setLoading(false);
+        }
+      }
+
+      return () => {
+        isSubscribed = false;
+      };
+    };
+
+    checkInvoice();
+  }, [searchParams]);
 
   const UploadDropZone = () => (
     <UploadDropzone
@@ -64,8 +187,8 @@ export default function DreamPage() {
             filePath: image.filePath,
             options: {
               transformation: "preset",
-              transformationPreset: "thumbnail"
-            }
+              transformationPreset: "thumbnail",
+            },
           });
           setPhotoName(imageName);
           setOriginalPhoto(imageUrl);
@@ -78,33 +201,61 @@ export default function DreamPage() {
   );
 
   async function generatePhoto(fileUrl: string) {
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    setLoading(true);
-    const res = await fetch("/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ imageUrl: fileUrl, theme, room }),
-    });
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Create invoice for new upload
+      const paymentResponse = await fetch("/invoice", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          originalPhoto: fileUrl,
+          theme,
+          room,
+        })
+      });
 
-    let newPhoto = await res.json();
-    if (res.status !== 200) {
-      setError(newPhoto);
-    } else {
-      setRestoredImage(newPhoto[1]);
-    }
-    setTimeout(() => {
+      if (!paymentResponse.ok) {
+        throw new Error('Failed to create invoice');
+      }
+
+      const paymentJson = await paymentResponse.json();
+      if (!paymentJson.invoiceUrl) {
+        setError("Failed to create invoice");
+        return;
+      }
+
+      // Redirect to payment
+      window.location.href = paymentJson.invoiceUrl;
+    } catch (error) {
+      console.error('Error:', error);
+      setError("Terjadi kesalahan");
+    } finally {
       setLoading(false);
-    }, 1300);
+    }
   }
+
+  const handleReset = () => {
+    setRestoredImage(null);
+    setRestoredLoaded(false);
+    setError(null);
+    setOriginalPhoto(null);
+    setTheme("Modern");
+    setRoom("Ruang Tamu");
+    
+    // Clear URL params
+    router.replace('/dream');
+  };
 
   return (
     <div className="flex max-w-6xl mx-auto flex-col items-center justify-center py-2 min-h-screen">
       <Header />
       <main className="flex flex-1 w-full flex-col items-center justify-center text-center px-4 mt-4 sm:mb-0 mb-8">
         <h1 className="mx-auto max-w-4xl font-display text-4xl font-bold tracking-normal text-slate-100 sm:text-6xl mb-5">
-          Generate your <span className="text-blue-600">dream</span> room
+          Desain ruang <span className="text-blue-600">impian</span> anda
         </h1>
         <ResizablePanel>
           <AnimatePresence mode="wait">
@@ -120,7 +271,7 @@ export default function DreamPage() {
                         alt="1 icon"
                       />
                       <p className="text-left font-medium">
-                        Choose your room theme.
+                        Pilih tema ruangan Anda
                       </p>
                     </div>
                     <DropDown
@@ -140,7 +291,7 @@ export default function DreamPage() {
                         alt="1 icon"
                       />
                       <p className="text-left font-medium">
-                        Choose your room type.
+                        Pilih tipe ruangan Anda
                       </p>
                     </div>
                     <DropDown
@@ -158,7 +309,7 @@ export default function DreamPage() {
                         alt="1 icon"
                       />
                       <p className="text-left font-medium">
-                        Upload a picture of your room.
+                        Unggah foto ruangan Anda
                       </p>
                     </div>
                   </div>
@@ -166,8 +317,8 @@ export default function DreamPage() {
               )}
               {restoredImage && (
                 <div>
-                  Here's your remodeled <b>{room.toLowerCase()}</b> in the{" "}
-                  <b>{theme.toLowerCase()}</b> theme!{" "}
+                  Inilah ruangan <b>{room.toLowerCase()}</b> yang telah
+                  direnovasi dalam tema <b>{theme.toLowerCase()}</b>
                 </div>
               )}
               <div
@@ -181,14 +332,14 @@ export default function DreamPage() {
                   setSideBySide={(newVal) => setSideBySide(newVal)}
                 />
               </div>
-              {restoredLoaded && sideBySide && (
+              {restoredLoaded && sideBySide && originalPhoto && (
                 <CompareSlider
-                  original={originalPhoto!}
+                  original={originalPhoto}
                   restored={restoredImage!}
                 />
               )}
-              {!originalPhoto && <UploadDropZone />}
-              {originalPhoto && !restoredImage && (
+              {!originalPhoto && !loading && !restoredImage && <UploadDropZone />}
+              {originalPhoto && !restoredImage && !loading && (
                 <Image
                   alt="original photo"
                   src={originalPhoto}
@@ -200,7 +351,7 @@ export default function DreamPage() {
               {restoredImage && originalPhoto && !sideBySide && (
                 <div className="flex sm:space-x-4 sm:flex-row flex-col">
                   <div>
-                    <h2 className="mb-1 font-medium text-lg">Original Room</h2>
+                    <h2 className="mb-1 font-medium text-lg">Sebelum</h2>
                     <Image
                       alt="original photo"
                       src={originalPhoto}
@@ -210,7 +361,7 @@ export default function DreamPage() {
                     />
                   </div>
                   <div className="sm:mt-0 mt-8">
-                    <h2 className="mb-1 font-medium text-lg">Generated Room</h2>
+                    <h2 className="mb-1 font-medium text-lg">Sesudah</h2>
                     <a href={restoredImage} target="_blank" rel="noreferrer">
                       <Image
                         alt="restored photo"
@@ -243,17 +394,12 @@ export default function DreamPage() {
                 </div>
               )}
               <div className="flex space-x-2 justify-center">
-                {originalPhoto && !loading && (
+                {(restoredImage || error) && !loading && (
                   <button
-                    onClick={() => {
-                      setOriginalPhoto(null);
-                      setRestoredImage(null);
-                      setRestoredLoaded(false);
-                      setError(null);
-                    }}
+                    onClick={handleReset}
                     className="bg-blue-500 rounded-full text-white font-medium px-4 py-2 mt-8 hover:bg-blue-500/80 transition"
                   >
-                    Generate New Room
+                    {error ? "Coba lagi" : "Desain ruangan baru"}
                   </button>
                 )}
                 {restoredLoaded && (
@@ -266,7 +412,7 @@ export default function DreamPage() {
                     }}
                     className="bg-white rounded-full text-black border font-medium px-4 py-2 mt-8 hover:bg-gray-100 transition"
                   >
-                    Download Generated Room
+                    Unduh hasil ruangan
                   </button>
                 )}
               </div>
