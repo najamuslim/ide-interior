@@ -17,7 +17,6 @@ import downloadPhoto from "../../utils/downloadPhoto";
 import DropDown from "../../components/DropDown";
 import { roomType, rooms, themeType, themes } from "../../utils/dropdownTypes";
 import { useSearchParams, useRouter } from 'next/navigation';
-import { markInvoiceAsUsed, checkInvoiceUsage } from '../../utils/redis-helpers';
 
 const options: UploadWidgetConfig = {
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
@@ -86,8 +85,8 @@ export default function DreamPage() {
   const [sideBySide, setSideBySide] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string | null>(null);
-  const [theme, setTheme] = useState<themeType>("Modern");
-  const [room, setRoom] = useState<roomType>("Ruang Tamu");
+  const [theme, setTheme] = useState<themeType>(searchParams.get('theme') as themeType || "Modern");
+  const [room, setRoom] = useState<roomType>(searchParams.get('room') as roomType || "Ruang Tamu");
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
   const processedInvoiceRef = useRef<string | null>(null);
 
@@ -108,53 +107,43 @@ export default function DreamPage() {
       try {
         setLoading(true);
         setError(null);
-        
-        // Check if invoice already used
-        const isUsed = await checkInvoiceUsage(invoiceId);
-        if (isUsed) {
-          setError("Invoice ini sudah digunakan");
-          setLoading(false);
-          return;
-        }
 
-        // Mark invoice as used BEFORE generating to prevent race conditions
-        await markInvoiceAsUsed(invoiceId);
-
-        // Get invoice data from Xendit
+        // Get invoice data first
         const response = await fetch(`/check-invoice?id=${invoiceId}`);
-        const invoice = await response.json();
+        const data = await response.json();
         
         if (!isSubscribed) return;
         
-        if (invoice.status === 'PAID' && invoice.metadata) {
-          // Set states from metadata
-          setTheme(invoice.metadata.theme as themeType);
-          setRoom(invoice.metadata.room as roomType);
-          setOriginalPhoto(invoice.metadata.originalPhoto);
+        if (response.ok && data.status === 'PAID' && data.metadata) {
+          // Set states from metadata immediately
+          setTheme(data.metadata.theme as themeType);
+          setRoom(data.metadata.room as roomType);
+          setOriginalPhoto(data.metadata.originalPhoto);
           
           // Generate image
-          const res = await fetch("/generate", {
-            method: "POST",
+          const generationResponse = await fetch('/generate', {
+            method: 'POST',
             headers: {
-              "Content-Type": "application/json",
+              'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ 
-              imageUrl: invoice.metadata.originalPhoto,
-              theme: invoice.metadata.theme,
-              room: invoice.metadata.room
-            }),
+            body: JSON.stringify({
+              imageUrl: data.metadata.originalPhoto,
+              theme: data.metadata.theme,
+              room: data.metadata.room,
+              invoiceId
+            })
           });
 
           if (!isSubscribed) return;
 
-          const newPhoto = await res.json();
-          if (res.status !== 200) {
-            setError(newPhoto);
+          const generatedImage = await generationResponse.json();
+          if (generationResponse.ok) {
+            setRestoredImage(generatedImage[1]);
           } else {
-            setRestoredImage(newPhoto[1]);
+            setError(generatedImage.error || "Gagal generate gambar");
           }
         } else {
-          setError("Pembayaran belum selesai");
+          setError(data.error || "Pembayaran belum selesai");
         }
       } catch (error) {
         console.error('Error:', error);

@@ -2,98 +2,105 @@ import { Ratelimit } from "@upstash/ratelimit";
 import redis from "../../utils/redis";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { getGeneratedImage, saveGeneratedImage } from '../../utils/redis-helpers';
 
-// Create a new ratelimiter, that allows 5 requests per 24 hours
 const ratelimit = redis
   ? new Ratelimit({
       redis: redis,
-      limiter: Ratelimit.fixedWindow(5, "1440 m"),
+      // 100 requests per hour per IP
+      // Masih reasonable untuk mencegah abuse tapi tidak mengganggu pengguna normal
+      limiter: Ratelimit.fixedWindow(100, "3600 s"),
       analytics: true,
     })
   : undefined;
 
 export async function POST(request: Request) {
-  //Rate Limiter Code
-  if (ratelimit) {
-    const headersList = headers();
-    const ipIdentifier = headersList.get("x-real-ip");
+  const { imageUrl, theme, room, invoiceId } = await request.json();
 
-    const result = await ratelimit.limit(ipIdentifier ?? "");
-
-    if (!result.success) {
-      return new Response(
-        "Too many uploads in 1 day. Please try again in a 24 hours.",
-        {
-          status: 429,
-          headers: {
-            "X-RateLimit-Limit": result.limit,
-            "X-RateLimit-Remaining": result.remaining,
-          } as any,
-        }
-      );
+  try {
+    // Check if image already in Redis cache
+    if (invoiceId) {
+      const cachedResponse = await getGeneratedImage(invoiceId);
+      if (cachedResponse) {
+        return NextResponse.json(cachedResponse);
+      }
     }
-  }
 
-  // Mock response untuk development
-  // return NextResponse.json([
-  //   "https://replicate.delivery/yhqm/m7zwtmCvSApaO1Y2KgOgbc2SxUaFR5dprFFNF01p4QjnSU7E/output_0.png",
-  //   "https://replicate.delivery/yhqm/GmGAf7frgzieYJJfDy2bR6e6qkOEyL044FImxJCEXwevnSU7E/output_1.png"
-  // ]);
+    console.log("No cached response found, generating new image");
 
-  // Comment real API call
-  const { imageUrl, theme, room } = await request.json();
+    //Rate Limiter Code
+    if (ratelimit) {
+      const headersList = headers();
+      const ipIdentifier = headersList.get("x-real-ip");
 
-  let startResponse = await fetch("https://api.replicate.com/v1/predictions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
-    },
-    body: JSON.stringify({
-      version:
-        "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b",
-      input: {
-        image: imageUrl,
-        prompt:
-          room === "Gaming Room"
-            ? "a room for gaming with gaming computers, gaming consoles, and gaming chairs"
-            : `a ${theme.toLowerCase()} ${room.toLowerCase()}`,
-        a_prompt:
-          "best quality, extremely detailed, photo from Pinterest, interior, cinematic photo, ultra-detailed, ultra-realistic, award-winning",
-        n_prompt:
-          "longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
-      },
-    }),
-  });
+      const result = await ratelimit.limit(ipIdentifier ?? "");
 
-  let jsonStartResponse = await startResponse.json();
+      if (!result.success) {
+        return new Response(
+          "Too many requests. Please try again in an hour.",
+          {
+            status: 429,
+            headers: {
+              "X-RateLimit-Limit": result.limit,
+              "X-RateLimit-Remaining": result.remaining,
+            } as any,
+          }
+        );
+      }
+    }
 
-  let endpointUrl = jsonStartResponse.urls.get;
-
-  // GET request to get the status of the image restoration process & return the result when it's ready
-  let restoredImage: string | null = null;
-  while (!restoredImage) {
-    // Loop in 1s intervals until the alt text is ready
-    console.log("polling for result...");
-    let finalResponse = await fetch(endpointUrl, {
-      method: "GET",
+    let startResponse = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
       },
+      body: JSON.stringify({
+        version: "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b",
+        input: {
+          image: imageUrl,
+          prompt: room === "Gaming Room"
+            ? "a room for gaming with gaming computers, gaming consoles, and gaming chairs"
+            : `a ${theme.toLowerCase()} ${room.toLowerCase()}`,
+          a_prompt: "best quality, extremely detailed, photo from Pinterest, interior, cinematic photo, ultra-detailed, ultra-realistic, award-winning",
+          n_prompt: "longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
+        },
+      }),
     });
-    let jsonFinalResponse = await finalResponse.json();
 
-    if (jsonFinalResponse.status === "succeeded") {
-      restoredImage = jsonFinalResponse.output;
-    } else if (jsonFinalResponse.status === "failed") {
-      break;
-    } else {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    let jsonStartResponse = await startResponse.json();
+    let endpointUrl = jsonStartResponse.urls.get;
+
+    // GET request to get the status of the image restoration process
+    let restoredImage: string | null = null;
+    while (!restoredImage) {
+      console.log("polling for result...");
+      let finalResponse = await fetch(endpointUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
+        },
+      });
+      let jsonFinalResponse = await finalResponse.json();
+
+      if (jsonFinalResponse.status === "succeeded") {
+        restoredImage = jsonFinalResponse.output;
+        // Save complete response to Redis
+        if (invoiceId) {
+          await saveGeneratedImage(invoiceId, JSON.stringify(restoredImage));
+        }
+        break;
+      } else if (jsonFinalResponse.status === "failed") {
+        break;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
     }
-  }
 
-  return NextResponse.json(
-    restoredImage ? restoredImage : "Failed to restore image"
-  );
+    return NextResponse.json(restoredImage ? restoredImage : "Failed to restore image");
+  } catch (error) {
+    console.error('Error generating image:', error);
+    return NextResponse.json({ error: "Failed to generate image" }, { status: 500 });
+  }
 }

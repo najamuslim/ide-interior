@@ -1,4 +1,16 @@
 import { NextResponse } from "next/server";
+import redis from "../../utils/redis";
+import { Ratelimit } from "@upstash/ratelimit";
+import { headers } from "next/headers";
+const ratelimit = redis
+  ? new Ratelimit({
+      redis: redis,
+      // 30 requests per minute per IP
+      // Lebih longgar dari create invoice karena ini endpoint yang dipoll
+      limiter: Ratelimit.fixedWindow(30, "60 s"),
+      analytics: true,
+    })
+  : undefined;
 
 export async function POST(request: Request) {
   try {
@@ -6,6 +18,21 @@ export async function POST(request: Request) {
     
     if (!originalPhoto || !theme || !room) {
       return NextResponse.json({ error: "Missing required data" }, { status: 400 });
+    }
+
+    //Rate Limiter Code
+    if (ratelimit) {
+      const headersList = headers();
+      const ipIdentifier = headersList.get("x-real-ip");
+
+      const result = await ratelimit.limit(ipIdentifier ?? "");
+
+      if (!result.success) {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again later." },
+          { status: 429 }
+        );
+      }
     }
 
     const external_id = `invoice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -23,8 +50,8 @@ export async function POST(request: Request) {
         payment_methods: ["QRIS", "BCA"],
         currency: "IDR",
         description: `Design for ${room} - ${theme} theme`,
-        success_redirect_url: `${process.env.NEXT_PUBLIC_URL}/dream?invoice=${external_id}&status=success`,
-        failure_redirect_url: `${process.env.NEXT_PUBLIC_URL}/dream?invoice=${external_id}&status=failed`,
+        success_redirect_url: `${process.env.NEXT_PUBLIC_URL}/dream?theme=${theme}&room=${room}&invoice=${external_id}&status=success`,
+        failure_redirect_url: `${process.env.NEXT_PUBLIC_URL}/dream?theme=${theme}&room=${room}&invoice=${external_id}&status=failed`,
         expiry_date: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         metadata: {
           originalPhoto,

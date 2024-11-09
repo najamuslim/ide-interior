@@ -10,7 +10,7 @@ export default function HomePage() {
       <Header />
       <main className="flex flex-1 w-full flex-col items-center justify-center text-center px-4 sm:mt-20 mt-20 background-gradient">
         <h1 className="mx-auto max-w-4xl font-display text-5xl font-bold tracking-normal text-gray-300 sm:text-7xl">
-          Menghasilkan ruang impian{" "}
+          Ciptakan ruang impian Anda {" "}
           <span className="relative whitespace-nowrap text-blue-600">
             <SquigglyLines />
             <span className="relative">dengan AI</span>
@@ -18,8 +18,7 @@ export default function HomePage() {
           untuk Semua.
         </h1>
         <h2 className="mx-auto mt-12 max-w-xl text-lg sm:text-gray-400  text-gray-500 leading-7">
-          Ambil foto ruangan Anda dan lihat bagaimana ruangan Anda terlihat
-          dalam tema yang berbeda. 100% gratis – remodel ruangan Anda hari ini.
+        Unggah foto ruangan Anda dan lihat transformasinya dalam berbagai tema. Mulai desain ulang ruangan Anda sekarang!
         </h2>
         <Link
           className="bg-blue-600 rounded-xl text-white font-medium px-4 py-3 sm:mt-10 mt-8 hover:bg-blue-500 transition"
