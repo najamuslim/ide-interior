@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { UrlBuilder, UploadManager } from "@bytescale/sdk";
 import { UploadWidgetConfig } from "@bytescale/upload-widget";
 import { UploadDropzone } from "@bytescale/upload-widget-react";
@@ -27,8 +27,9 @@ import {
   themeTranslations,
   roomTranslations,
 } from "../../utils/dropdownTypes";
-import { useSearchParams, useRouter, redirect } from "next/navigation";
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from "@clerk/nextjs";
+import { redirect } from 'next/navigation';
 
 const options: UploadWidgetConfig = {
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
@@ -94,11 +95,11 @@ const uploadManager = new UploadManager({
     : "free"
 });
 
-export default function DreamPage() {
+// Create a wrapper component that uses searchParams
+function DreamPageContent() {
   const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const processedInvoiceRef = useRef<string | null>(null);
   const [restoredImage, setRestoredImage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [restoredLoaded, setRestoredLoaded] = useState<boolean>(false);
@@ -106,26 +107,19 @@ export default function DreamPage() {
   const [error, setError] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string | null>(null);
   const [theme, setTheme] = useState<themeType>(
-    (searchParams.get("theme") as themeType) || "Modern"
+    (searchParams?.get("theme") as themeType) || "Modern"
   );
   const [room, setRoom] = useState<roomType>(
-    (searchParams.get("room") as roomType) || "Living Room"
+    (searchParams?.get("room") as roomType) || "Living Room"
   );
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
+  const processedInvoiceRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isSignedIn) {
+    if (isLoaded && !isSignedIn) {
       redirect('/sign-in');
     }
-  }, [isSignedIn]);
-
-  if (!isLoaded) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <LoadingDots color="white" style="large" />
-      </div>
-    );
-  }
+  }, [isLoaded, isSignedIn]);
 
   useEffect(() => {
     const checkInvoice = async () => {
@@ -488,5 +482,23 @@ export default function DreamPage() {
       </main>
       <Footer />
     </div>
+  );
+}
+
+// Create a loading component
+function DreamPageLoading() {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <LoadingDots color="white" style="large" />
+    </div>
+  );
+}
+
+// Main component with Suspense
+export default function DreamPage() {
+  return (
+    <Suspense fallback={<DreamPageLoading />}>
+      <DreamPageContent />
+    </Suspense>
   );
 }
