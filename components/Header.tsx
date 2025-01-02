@@ -7,7 +7,7 @@ export default function Header() {
       <Link href="/" className="flex space-x-2">
         <Image
           alt="header text"
-          src="/bed.svg"
+          src="/ideinteriorlogo.svg"
           className="sm:w-10 sm:h-10 w-9 h-9"
           width={24}
           height={24}

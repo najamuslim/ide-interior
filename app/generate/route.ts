@@ -2,7 +2,10 @@ import { Ratelimit } from "@upstash/ratelimit";
 import redis from "../../utils/redis";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { getGeneratedImage, saveGeneratedImage } from '../../utils/redis-helpers';
+import {
+  getGeneratedImage,
+  saveGeneratedImage,
+} from "../../utils/redis-helpers";
 
 const ratelimit = redis
   ? new Ratelimit({
@@ -36,37 +39,41 @@ export async function POST(request: Request) {
       const result = await ratelimit.limit(ipIdentifier ?? "");
 
       if (!result.success) {
-        return new Response(
-          "Too many requests. Please try again in an hour.",
-          {
-            status: 429,
-            headers: {
-              "X-RateLimit-Limit": result.limit,
-              "X-RateLimit-Remaining": result.remaining,
-            } as any,
-          }
-        );
+        return new Response("Too many requests. Please try again in an hour.", {
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": result.limit,
+            "X-RateLimit-Remaining": result.remaining,
+          } as any,
+        });
       }
     }
 
-    let startResponse = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
-      },
-      body: JSON.stringify({
-        version: "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b",
-        input: {
-          image: imageUrl,
-          prompt: room === "Gaming Room"
-            ? "a room for gaming with gaming computers, gaming consoles, and gaming chairs"
-            : `a ${theme.toLowerCase()} ${room.toLowerCase()}`,
-          a_prompt: "best quality, extremely detailed, photo from Pinterest, interior, cinematic photo, ultra-detailed, ultra-realistic, award-winning",
-          n_prompt: "longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
+    let startResponse = await fetch(
+      "https://api.replicate.com/v1/predictions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
         },
-      }),
-    });
+        body: JSON.stringify({
+          version:
+            "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b",
+          input: {
+            image: imageUrl,
+            prompt:
+              room === "Gaming Room"
+                ? "a modern gaming room with ergonomic gaming chairs, dual or triple monitors on a sleek desk, RGB lighting, a wall-mounted TV, gaming consoles, shelves for accessories, clean and organized setup"
+                : `a realistic, functional ${theme.toLowerCase()} ${room.toLowerCase()} with high-quality furniture, practical layout, and natural lighting`,
+            a_prompt:
+              "best quality, ultra-detailed, photo from Pinterest, interior, realistic furniture, natural lighting, cinematic photo, ultra-realistic, award-winning, lifelike materials, functional design, symmetrical layout",
+            n_prompt:
+              "longbody, lowres, bad anatomy, unrealistic shapes, disproportionate furniture, floating objects, distorted layout, bad lighting, extra elements, poor quality, low quality",
+          },
+        }),
+      }
+    );
 
     let jsonStartResponse = await startResponse.json();
     let endpointUrl = jsonStartResponse.urls.get;
@@ -98,9 +105,14 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json(restoredImage ? restoredImage : "Failed to restore image");
+    return NextResponse.json(
+      restoredImage ? restoredImage : "Failed to restore image"
+    );
   } catch (error) {
-    console.error('Error generating image:', error);
-    return NextResponse.json({ error: "Failed to generate image" }, { status: 500 });
+    console.error("Error generating image:", error);
+    return NextResponse.json(
+      { error: "Failed to generate image" },
+      { status: 500 }
+    );
   }
 }

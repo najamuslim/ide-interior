@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
-import { UrlBuilder } from "@bytescale/sdk";
+import { UrlBuilder, UploadManager } from "@bytescale/sdk";
 import { UploadWidgetConfig } from "@bytescale/upload-widget";
 import { UploadDropzone } from "@bytescale/upload-widget-react";
 import { CompareSlider } from "../../components/CompareSlider";
@@ -15,8 +15,19 @@ import Toggle from "../../components/Toggle";
 import appendNewToName from "../../utils/appendNewToName";
 import downloadPhoto from "../../utils/downloadPhoto";
 import DropDown from "../../components/DropDown";
-import { roomType, rooms, themeType, themes } from "../../utils/dropdownTypes";
-import { useSearchParams, useRouter } from 'next/navigation';
+import {
+  roomType,
+  rooms,
+  themeType,
+  themes,
+  getEnglishTheme,
+  getEnglishRoom,
+  getIndonesianTheme,
+  getIndonesianRoom,
+  themeTranslations,
+  roomTranslations,
+} from "../../utils/dropdownTypes";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const options: UploadWidgetConfig = {
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
@@ -76,6 +87,12 @@ const options: UploadWidgetConfig = {
   },
 };
 
+const uploadManager = new UploadManager({
+  apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
+    ? process.env.NEXT_PUBLIC_UPLOAD_API_KEY
+    : "free"
+});
+
 export default function DreamPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -85,19 +102,25 @@ export default function DreamPage() {
   const [sideBySide, setSideBySide] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string | null>(null);
-  const [theme, setTheme] = useState<themeType>(searchParams.get('theme') as themeType || "Modern");
-  const [room, setRoom] = useState<roomType>(searchParams.get('room') as roomType || "Ruang Tamu");
+  const [theme, setTheme] = useState<themeType>(
+    (searchParams.get("theme") as themeType) || "Modern"
+  );
+  const [room, setRoom] = useState<roomType>(
+    (searchParams.get("room") as roomType) || "Living Room"
+  );
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
   const processedInvoiceRef = useRef<string | null>(null);
 
   useEffect(() => {
     const checkInvoice = async () => {
-      const status = searchParams.get('status');
-      const invoiceId = searchParams.get('invoice');
-      
-      if (!invoiceId || 
-          status !== 'success' || 
-          processedInvoiceRef.current === invoiceId) {
+      const status = searchParams.get("status");
+      const invoiceId = searchParams.get("invoice");
+
+      if (
+        !invoiceId ||
+        status !== "success" ||
+        processedInvoiceRef.current === invoiceId
+      ) {
         return;
       }
 
@@ -111,27 +134,27 @@ export default function DreamPage() {
         // Get invoice data first
         const response = await fetch(`/check-invoice?id=${invoiceId}`);
         const data = await response.json();
-        
+
         if (!isSubscribed) return;
-        
-        if (response.ok && data.status === 'PAID' && data.metadata) {
+
+        if (response.ok && data.status === "PAID" && data.metadata) {
           // Set states from metadata immediately
           setTheme(data.metadata.theme as themeType);
           setRoom(data.metadata.room as roomType);
           setOriginalPhoto(data.metadata.originalPhoto);
-          
+
           // Generate image
-          const generationResponse = await fetch('/generate', {
-            method: 'POST',
+          const generationResponse = await fetch("/generate", {
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
               imageUrl: data.metadata.originalPhoto,
               theme: data.metadata.theme,
               room: data.metadata.room,
-              invoiceId
-            })
+              invoiceId,
+            }),
           });
 
           if (!isSubscribed) return;
@@ -146,7 +169,7 @@ export default function DreamPage() {
           setError(data.error || "Pembayaran belum selesai");
         }
       } catch (error) {
-        console.error('Error:', error);
+        console.error("Error:", error);
         if (isSubscribed) {
           setError("Gagal memuat data pembayaran");
         }
@@ -184,31 +207,58 @@ export default function DreamPage() {
           generatePhoto(imageUrl);
         }
       }}
-      width="670px"
+      width="400px"
       height="250px"
     />
   );
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Upload the file to Bytescale
+      const uploadedFile = await uploadManager.upload({data: file});
+
+      // Create the image URL using UrlBuilder
+      const imageUrl = UrlBuilder.url({
+        accountId: uploadedFile.accountId,
+        filePath: uploadedFile.filePath,
+        options: {
+          transformation: "preset",
+          transformationPreset: "thumbnail",
+        },
+      });
+
+      // Set the states and generate photo
+      setPhotoName(file.name);
+      setOriginalPhoto(imageUrl);
+      generatePhoto(imageUrl);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      setError("Failed to upload image");
+    }
+  };
 
   async function generatePhoto(fileUrl: string) {
     try {
       setLoading(true);
       setError(null);
-      
-      // Create invoice for new upload
+
       const paymentResponse = await fetch("/invoice", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           originalPhoto: fileUrl,
-          theme,
-          room,
-        })
+          theme: theme,
+          room: room,
+        }),
       });
 
       if (!paymentResponse.ok) {
-        throw new Error('Failed to create invoice');
+        throw new Error("Failed to create invoice");
       }
 
       const paymentJson = await paymentResponse.json();
@@ -220,7 +270,7 @@ export default function DreamPage() {
       // Redirect to payment
       window.location.href = paymentJson.invoiceUrl;
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
       setError("Terjadi kesalahan");
     } finally {
       setLoading(false);
@@ -232,11 +282,11 @@ export default function DreamPage() {
     setRestoredLoaded(false);
     setError(null);
     setOriginalPhoto(null);
-    setTheme("Modern");
-    setRoom("Ruang Tamu");
-    
+    setTheme("Modern" as themeType);
+    setRoom("Living Room" as roomType);
+
     // Clear URL params
-    router.replace('/dream');
+    router.replace("/dream");
   };
 
   return (
@@ -263,16 +313,17 @@ export default function DreamPage() {
                         Pilih tema ruangan Anda
                       </p>
                     </div>
-                    <DropDown
-                      theme={theme}
-                      setTheme={(newTheme) =>
-                        setTheme(newTheme as typeof theme)
-                      }
-                      themes={themes}
-                    />
+                    <div className="relative z-[31]">
+                      <DropDown
+                        theme={theme}
+                        setTheme={(newTheme) => setTheme(newTheme as typeof theme)}
+                        themes={themes as themeType[]}
+                        translations={themeTranslations}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-4 w-full max-w-sm">
-                    <div className="flex mt-10 items-center space-x-3">
+                  <div className="space-y-4 w-full max-w-sm mt-8">
+                    <div className="flex items-center space-x-3">
                       <Image
                         src="/number-2-white.svg"
                         width={30}
@@ -283,14 +334,17 @@ export default function DreamPage() {
                         Pilih tipe ruangan Anda
                       </p>
                     </div>
-                    <DropDown
-                      theme={room}
-                      setTheme={(newRoom) => setRoom(newRoom as typeof room)}
-                      themes={rooms}
-                    />
+                    <div className="relative z-[30]">
+                      <DropDown
+                        theme={room}
+                        setTheme={(newRoom) => setRoom(newRoom as typeof room)}
+                        themes={rooms as roomType[]}
+                        translations={roomTranslations}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-4 w-full max-w-sm">
-                    <div className="flex mt-6 w-96 items-center space-x-3">
+                  <div className="mt-8 w-full max-w-sm">
+                    <div className="flex items-center space-x-3 relative z-[29]">
                       <Image
                         src="/number-3-white.svg"
                         width={30}
@@ -306,8 +360,8 @@ export default function DreamPage() {
               )}
               {restoredImage && (
                 <div>
-                  Inilah ruangan <b>{room.toLowerCase()}</b> yang telah
-                  direnovasi dalam tema <b>{theme.toLowerCase()}</b>
+                  Inilah ruangan <b>{getIndonesianRoom(room)}</b> yang telah
+                  direnovasi dalam tema <b>{getIndonesianTheme(theme)}</b>
                 </div>
               )}
               <div
@@ -327,7 +381,14 @@ export default function DreamPage() {
                   restored={restoredImage!}
                 />
               )}
-              {!originalPhoto && !loading && !restoredImage && <UploadDropZone />}
+              {!originalPhoto && !loading && !restoredImage && (
+                <input
+                  className="h-48"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
+              )}
               {originalPhoto && !restoredImage && !loading && (
                 <Image
                   alt="original photo"
