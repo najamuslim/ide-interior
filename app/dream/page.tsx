@@ -236,7 +236,7 @@ function DreamPageContent() {
         filePath: uploadedFile.filePath,
         options: {
           transformation: "preset",
-          transformationPreset: "thumbnail",
+          transformationPreset: "thumbnail-square",
         },
       });
 
