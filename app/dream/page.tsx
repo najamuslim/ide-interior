@@ -27,7 +27,8 @@ import {
   themeTranslations,
   roomTranslations,
 } from "../../utils/dropdownTypes";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, redirect } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 
 const options: UploadWidgetConfig = {
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
@@ -94,8 +95,10 @@ const uploadManager = new UploadManager({
 });
 
 export default function DreamPage() {
+  const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const processedInvoiceRef = useRef<string | null>(null);
   const [restoredImage, setRestoredImage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [restoredLoaded, setRestoredLoaded] = useState<boolean>(false);
@@ -109,7 +112,20 @@ export default function DreamPage() {
     (searchParams.get("room") as roomType) || "Living Room"
   );
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
-  const processedInvoiceRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      redirect('/sign-in');
+    }
+  }, [isSignedIn]);
+
+  if (!isLoaded) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <LoadingDots color="white" style="large" />
+      </div>
+    );
+  }
 
   useEffect(() => {
     const checkInvoice = async () => {
