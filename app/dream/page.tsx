@@ -27,9 +27,10 @@ import {
   themeTranslations,
   roomTranslations,
 } from "../../utils/dropdownTypes";
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
+import imageCompression from "browser-image-compression";
 
 const options: UploadWidgetConfig = {
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
@@ -92,7 +93,7 @@ const options: UploadWidgetConfig = {
 const uploadManager = new UploadManager({
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
     ? process.env.NEXT_PUBLIC_UPLOAD_API_KEY
-    : "free"
+    : "free",
 });
 
 // Create a wrapper component that uses searchParams
@@ -117,7 +118,7 @@ function DreamPageContent() {
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      redirect('/sign-in');
+      redirect("/sign-in");
     }
   }, [isLoaded, isSignedIn]);
 
@@ -222,22 +223,29 @@ function DreamPageContent() {
     />
   );
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     try {
-      // Upload the file to Bytescale
-      const uploadedFile = await uploadManager.upload({data: file});
+      // Compress image before upload
+      const options = {
+        maxSizeMB: 1, // Maksimal ukuran file setelah dikompresi (1MB)
+        maxWidthOrHeight: 1024, // Tidak membatasi resolusi gambar
+        useWebWorker: true, // Supaya kompresi lebih cepat
+      };
+
+      const compressedFile = await imageCompression(file, options);
+
+      // Upload the compressed file to Bytescale
+      const uploadedFile = await uploadManager.upload({ data: compressedFile });
 
       // Create the image URL using UrlBuilder
       const imageUrl = UrlBuilder.url({
         accountId: uploadedFile.accountId,
         filePath: uploadedFile.filePath,
-        options: {
-          transformation: "preset",
-          transformationPreset: "thumbnail-square",
-        },
       });
 
       // Set the states and generate photo
@@ -326,7 +334,9 @@ function DreamPageContent() {
                     <div className="relative z-[31]">
                       <DropDown
                         theme={theme}
-                        setTheme={(newTheme) => setTheme(newTheme as typeof theme)}
+                        setTheme={(newTheme) =>
+                          setTheme(newTheme as typeof theme)
+                        }
                         themes={themes as themeType[]}
                         translations={themeTranslations}
                       />
