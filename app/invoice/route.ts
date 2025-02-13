@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     );
 
     const paymentResponse = await fetch(
-      "https://api.sandbox.midtrans.com/v1/payment-links",
+      "https://api.midtrans.com/v1/payment-links",
       {
         method: "POST",
         headers: {
