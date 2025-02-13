@@ -108,10 +108,14 @@ function DreamPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string | null>(null);
   const [theme, setTheme] = useState<themeType>(
-    (searchParams?.get("theme") as themeType) || "Modern"
+    (searchParams?.get("theme")
+      ? decodeURIComponent(searchParams.get("theme")!)
+      : "Modern") as themeType
   );
   const [room, setRoom] = useState<roomType>(
-    (searchParams?.get("room") as roomType) || "Living Room"
+    (searchParams?.get("room")
+      ? decodeURIComponent(searchParams.get("room")!)
+      : "Living Room") as roomType
   );
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
   const processedInvoiceRef = useRef<string | null>(null);
@@ -123,36 +127,44 @@ function DreamPageContent() {
   }, [isLoaded, isSignedIn]);
 
   useEffect(() => {
-    const checkInvoice = async () => {
+    const checkPayment = async () => {
       const status = searchParams.get("status");
-      const invoiceId = searchParams.get("invoice");
+      const orderId = searchParams.get("order_id");
 
       if (
-        !invoiceId ||
+        !orderId ||
         status !== "success" ||
-        processedInvoiceRef.current === invoiceId
+        processedInvoiceRef.current === orderId
       ) {
         return;
       }
 
-      processedInvoiceRef.current = invoiceId;
+      processedInvoiceRef.current = orderId;
       let isSubscribed = true;
 
       try {
         setLoading(true);
         setError(null);
 
-        // Get invoice data first
-        const response = await fetch(`/check-invoice?id=${invoiceId}`);
+        // Get payment data first
+        const response = await fetch(`/check-invoice?id=${orderId}`);
         const data = await response.json();
 
         if (!isSubscribed) return;
 
         if (response.ok && data.status === "PAID" && data.metadata) {
-          // Set states from metadata immediately
-          setTheme(data.metadata.theme as themeType);
-          setRoom(data.metadata.room as roomType);
-          setOriginalPhoto(data.metadata.originalPhoto);
+          const { theme, room, originalPhoto } = JSON.parse(data.metadata);
+
+          // Validate theme and room from metadata
+          if (!theme || !room || !originalPhoto) {
+            setError("Data tidak lengkap");
+            return;
+          }
+
+          // Set states from metadata
+          setTheme(theme as themeType);
+          setRoom(room as roomType);
+          setOriginalPhoto(originalPhoto);
 
           // Generate image
           const generationResponse = await fetch("/generate", {
@@ -161,10 +173,10 @@ function DreamPageContent() {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              imageUrl: data.metadata.originalPhoto,
-              theme: data.metadata.theme,
-              room: data.metadata.room,
-              invoiceId,
+              imageUrl: originalPhoto,
+              theme,
+              room,
+              orderId,
             }),
           });
 
@@ -195,7 +207,7 @@ function DreamPageContent() {
       };
     };
 
-    checkInvoice();
+    checkPayment();
   }, [searchParams]);
 
   const UploadDropZone = () => (
@@ -226,6 +238,7 @@ function DreamPageContent() {
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
+    setLoading(true);
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -255,6 +268,7 @@ function DreamPageContent() {
     } catch (error) {
       console.error("Error uploading file:", error);
       setError("Failed to upload image");
+      setLoading(false);
     }
   };
 

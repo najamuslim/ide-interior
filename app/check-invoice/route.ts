@@ -15,10 +15,10 @@ const ratelimit = redis
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const externalId = searchParams.get('id');
+  const orderId = searchParams.get("id");
 
-  if (!externalId) {
-    return NextResponse.json({ error: "Missing invoice ID" }, { status: 400 });
+  if (!orderId) {
+    return NextResponse.json({ error: "Missing order ID" }, { status: 400 });
   }
 
   try {
@@ -37,43 +37,50 @@ export async function GET(request: Request) {
       }
     }
 
-    const invoice = await getInvoiceData(externalId);
-    
-    if (invoice.status !== 'PAID' || !invoice.metadata) {
-      return NextResponse.json(invoice);
+    const paymentData = await getPaymentData(orderId);
+
+    if (
+      paymentData.last_snap_transaction_status !== "SETTLEMENT" ||
+      !paymentData.metadata
+    ) {
+      return NextResponse.json(paymentData);
     }
 
-    // Return invoice data with metadata
+    // Return payment data with metadata
     return NextResponse.json({
-      status: invoice.status,
-      metadata: invoice.metadata,
-      loading: true
+      status: "PAID",
+      metadata: paymentData.metadata,
+      loading: true,
     });
-    
   } catch (error) {
-    console.error('Error checking invoice:', error);
-    return NextResponse.json({ error: "Failed to check invoice" }, { status: 500 });
+    console.error("Error checking payment:", error);
+    return NextResponse.json(
+      { error: "Failed to check payment status" },
+      { status: 500 }
+    );
   }
 }
 
-async function getInvoiceData(externalId: string) {
-  const base64Credentials = Buffer.from(`${process.env.XENDIT_API_KEY}:`).toString('base64');
-  
-  const response = await fetch(`https://api.xendit.co/v2/invoices?external_id=${externalId}`, {
-    headers: {
-      Authorization: `Basic ${base64Credentials}`,
-    },
-  });
+async function getPaymentData(orderId: string) {
+  const base64Credentials = Buffer.from(
+    `${process.env.MIDTRANS_SERVER_KEY}:`
+  ).toString("base64");
+
+  const response = await fetch(
+    `https://api.sandbox.midtrans.com/v1/payment-links/${orderId}`,
+    {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Basic ${base64Credentials}`,
+      },
+    }
+  );
 
   const data = await response.json();
-  
+
   if (!response.ok) {
-    throw new Error('Failed to fetch invoice');
+    throw new Error("Failed to fetch payment data");
   }
-  
-  if (data && data.length > 0) {
-    return data[0];
-  }
-  
-  throw new Error('Invoice not found');
+
+  return data;
 }

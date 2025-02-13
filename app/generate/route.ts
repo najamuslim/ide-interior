@@ -6,6 +6,7 @@ import {
   getGeneratedImage,
   saveGeneratedImage,
 } from "../../utils/redis-helpers";
+import { themeType, roomType } from "../../utils/dropdownTypes";
 
 const ratelimit = redis
   ? new Ratelimit({
@@ -18,12 +19,19 @@ const ratelimit = redis
   : undefined;
 
 export async function POST(request: Request) {
-  const { imageUrl, theme, room, invoiceId } = await request.json();
-
   try {
+    const { imageUrl, theme, room, orderId } = await request.json();
+
+    if (!imageUrl || !theme || !room) {
+      return NextResponse.json(
+        { error: "Missing required parameters" },
+        { status: 400 }
+      );
+    }
+
     // Check if image already in Redis cache
-    if (invoiceId) {
-      const cachedResponse = await getGeneratedImage(invoiceId);
+    if (orderId) {
+      const cachedResponse = await getGeneratedImage(orderId);
       if (cachedResponse) {
         return NextResponse.json(cachedResponse);
       }
@@ -49,6 +57,13 @@ export async function POST(request: Request) {
       }
     }
 
+    const getPrompt = (room: string, theme: string) => {
+      if (room === "Gaming Room") {
+        return "a modern gaming room with ergonomic gaming chairs, dual or triple monitors on a sleek desk, RGB lighting, a wall-mounted TV, gaming consoles, shelves for accessories, clean and organized setup";
+      }
+      return `a realistic, functional ${theme.toLowerCase()} ${room.toLowerCase()} with high-quality furniture, practical layout, and natural lighting`;
+    };
+
     let startResponse = await fetch(
       "https://api.replicate.com/v1/predictions",
       {
@@ -62,10 +77,7 @@ export async function POST(request: Request) {
             "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b",
           input: {
             image: imageUrl,
-            prompt:
-              room === "Gaming Room"
-                ? "a modern gaming room with ergonomic gaming chairs, dual or triple monitors on a sleek desk, RGB lighting, a wall-mounted TV, gaming consoles, shelves for accessories, clean and organized setup"
-                : `a realistic, functional ${theme.toLowerCase()} ${room.toLowerCase()} with high-quality furniture, practical layout, and natural lighting`,
+            prompt: getPrompt(room, theme),
             a_prompt:
               "best quality, ultra-detailed, photo from Pinterest, interior, realistic furniture, natural lighting, cinematic photo, ultra-realistic, award-winning, lifelike materials, functional design, symmetrical layout",
             n_prompt:
@@ -94,8 +106,8 @@ export async function POST(request: Request) {
       if (jsonFinalResponse.status === "succeeded") {
         restoredImage = jsonFinalResponse.output;
         // Save complete response to Redis
-        if (invoiceId) {
-          await saveGeneratedImage(invoiceId, JSON.stringify(restoredImage));
+        if (orderId) {
+          await saveGeneratedImage(orderId, JSON.stringify(restoredImage));
         }
         break;
       } else if (jsonFinalResponse.status === "failed") {
