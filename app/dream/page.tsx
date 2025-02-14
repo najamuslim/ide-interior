@@ -420,7 +420,6 @@ function DreamPageContent() {
                   className="h-48"
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   onChange={handleFileChange}
                 />
               )}
