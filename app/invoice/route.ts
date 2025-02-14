@@ -18,11 +18,6 @@ const ratelimit = redis
 export async function POST(request: Request) {
   try {
     const { originalPhoto, theme, room } = await request.json();
-    const user = await currentUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     if (!originalPhoto || !theme || !room) {
       return NextResponse.json(
@@ -30,6 +25,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Try to get authenticated user, but don't require it
+    const user = await currentUser();
 
     //Rate Limiter Code
     if (ratelimit) {
@@ -53,14 +51,21 @@ export async function POST(request: Request) {
       `${process.env.MIDTRANS_SERVER_KEY}:`
     ).toString("base64");
 
-    // Get user's primary email
-    const primaryEmail = user.emailAddresses.find(
-      (email: EmailAddress) => email.id === user.primaryEmailAddressId
-    )?.emailAddress;
-
-    // Get user's full name or first name
-    const firstName = user.firstName || "";
-    const lastName = user.lastName || "";
+    // Get user details if authenticated, otherwise use guest info
+    const customerDetails = user
+      ? {
+          first_name: user.firstName || "Guest",
+          last_name: user.lastName || "User",
+          email:
+            user.emailAddresses.find(
+              (email: EmailAddress) => email.id === user.primaryEmailAddressId
+            )?.emailAddress || "guest@example.com",
+        }
+      : {
+          first_name: "Guest",
+          last_name: "User",
+          email: "guest@example.com",
+        };
 
     console.log(
       `${process.env.NEXT_PUBLIC_URL}/dream?theme=${theme}&room=${room}&order_id=${orderId}&status=success`
@@ -81,11 +86,7 @@ export async function POST(request: Request) {
             gross_amount: 25000,
           },
           enabled_payments: ["gopay", "shopeepay", "bca_va"],
-          customer_details: {
-            first_name: firstName,
-            last_name: lastName,
-            email: primaryEmail || "",
-          },
+          customer_details: customerDetails,
           expiry: {
             duration: 30,
             unit: "minutes",
@@ -94,14 +95,14 @@ export async function POST(request: Request) {
             {
               name: `Design for ${room} - ${theme} theme`,
               quantity: 1,
-              price: 10000,
+              price: 25000,
             },
           ],
           metadata: {
             originalPhoto,
             theme,
             room,
-            userId: user.id,
+            userId: user?.id || "guest",
           },
           callbacks: {
             finish: `${
