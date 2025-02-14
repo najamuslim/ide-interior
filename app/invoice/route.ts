@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import redis from "../../utils/redis";
 import { Ratelimit } from "@upstash/ratelimit";
 import { headers } from "next/headers";
+import { currentUser } from "@clerk/nextjs/server";
+import { EmailAddress } from "@clerk/nextjs/server";
 
 const ratelimit = redis
   ? new Ratelimit({
@@ -16,6 +18,11 @@ const ratelimit = redis
 export async function POST(request: Request) {
   try {
     const { originalPhoto, theme, room } = await request.json();
+    const user = await currentUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     if (!originalPhoto || !theme || !room) {
       return NextResponse.json(
@@ -46,6 +53,15 @@ export async function POST(request: Request) {
       `${process.env.MIDTRANS_SERVER_KEY}:`
     ).toString("base64");
 
+    // Get user's primary email
+    const primaryEmail = user.emailAddresses.find(
+      (email: EmailAddress) => email.id === user.primaryEmailAddressId
+    )?.emailAddress;
+
+    // Get user's full name or first name
+    const firstName = user.firstName || "";
+    const lastName = user.lastName || "";
+
     console.log(
       `${process.env.NEXT_PUBLIC_URL}/dream?theme=${theme}&room=${room}&order_id=${orderId}&status=success`
     );
@@ -62,13 +78,13 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           transaction_details: {
             order_id: orderId,
-            gross_amount: 10000,
+            gross_amount: 25000,
           },
           enabled_payments: ["gopay", "shopeepay", "bca_va"],
           customer_details: {
-            first_name: "Guest User",
-            email: "guest@example.com",
-            phone: "08111222333",
+            first_name: firstName,
+            last_name: lastName,
+            email: primaryEmail || "",
           },
           expiry: {
             duration: 30,
@@ -85,6 +101,7 @@ export async function POST(request: Request) {
             originalPhoto,
             theme,
             room,
+            userId: user.id,
           },
           callbacks: {
             finish: `${
