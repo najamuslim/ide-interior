@@ -480,7 +480,7 @@ function DreamPageContent() {
               <div className="flex space-x-2 justify-center">
                 {(restoredImage || error) && !loading && (
                   <button
-                    onClick={handleReset}
+                    onClick={error ? window.location.reload : handleReset}
                     className="bg-blue-500 rounded-full text-white font-medium px-4 py-2 mt-8 hover:bg-blue-500/80 transition"
                   >
                     {error ? "Coba lagi" : "Desain ruangan baru"}
