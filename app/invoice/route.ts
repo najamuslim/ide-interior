@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     );
 
     const paymentResponse = await fetch(
-      "https://api.midtrans.com/v1/payment-links",
+      "https://api.sandbox.midtrans.com/v1/payment-links",
       {
         method: "POST",
         headers: {
@@ -96,6 +96,7 @@ export async function POST(request: Request) {
               name: `Design for ${room} - ${theme} theme`,
               quantity: 1,
               price: 25000,
+              url: `${process.env.NEXT_PUBLIC_URL}/dream?theme=${theme}&room=${room}&order_id=${orderId}&status=success`,
             },
           ],
           metadata: {
