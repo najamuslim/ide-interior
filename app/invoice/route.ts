@@ -5,6 +5,11 @@ import { headers } from "next/headers";
 import { currentUser } from "@clerk/nextjs/server";
 import { EmailAddress } from "@clerk/nextjs/server";
 
+// Helper function to convert spaces to underscores
+function formatUrlParam(param: string): string {
+  return param.replace(/\s+/g, "_");
+}
+
 const ratelimit = redis
   ? new Ratelimit({
       redis: redis,
@@ -67,12 +72,14 @@ export async function POST(request: Request) {
           email: "guest@example.com",
         };
 
-    console.log(
-      `${process.env.NEXT_PUBLIC_URL}/dream?theme=${theme}&room=${room}&order_id=${orderId}&status=success`
-    );
+    // Format theme and room for URLs
+    const urlTheme = formatUrlParam(theme);
+    const urlRoom = formatUrlParam(room);
+    const baseCallbackUrl = `${process.env.NEXT_PUBLIC_URL}/dream?theme=${urlTheme}&room=${urlRoom}&order_id=${orderId}`;
 
-    const paymentResponse = await fetch(
-      "https://api.midtrans.com/v1/payment-links",
+    // Create SNAP token
+    const snapResponse = await fetch(
+      `${process.env.MIDTRANS_HOST_URL}/snap/v1/transactions`,
       {
         method: "POST",
         headers: {
@@ -85,17 +92,17 @@ export async function POST(request: Request) {
             order_id: orderId,
             gross_amount: 25000,
           },
-          enabled_payments: ["gopay", "shopeepay", "bca_va"],
-          customer_details: customerDetails,
-          expiry: {
-            duration: 30,
-            unit: "minutes",
+          credit_card: {
+            secure: true,
           },
+          customer_details: customerDetails,
           item_details: [
             {
-              name: `Design for ${room} - ${theme} theme`,
-              quantity: 1,
+              id: "1",
               price: 25000,
+              quantity: 1,
+              name: `Design for ${room} - ${theme} theme`,
+              url: baseCallbackUrl,
             },
           ],
           metadata: {
@@ -105,59 +112,28 @@ export async function POST(request: Request) {
             userId: user?.id || "guest",
           },
           callbacks: {
-            finish: `${
-              process.env.NEXT_PUBLIC_URL
-            }/dream?theme=${encodeURIComponent(
-              theme
-            )}&room=${encodeURIComponent(
-              room
-            )}&order_id=${orderId}&status=success`,
-            cancel: `${
-              process.env.NEXT_PUBLIC_URL
-            }/dream?theme=${encodeURIComponent(
-              theme
-            )}&room=${encodeURIComponent(
-              room
-            )}&order_id=${orderId}&status=cancel`,
-            error: `${
-              process.env.NEXT_PUBLIC_URL
-            }/dream?theme=${encodeURIComponent(
-              theme
-            )}&room=${encodeURIComponent(
-              room
-            )}&order_id=${orderId}&status=error`,
-            unfinish: `${
-              process.env.NEXT_PUBLIC_URL
-            }/dream?theme=${encodeURIComponent(
-              theme
-            )}&room=${encodeURIComponent(
-              room
-            )}&order_id=${orderId}&status=unfinish`,
+            finish: baseCallbackUrl,
           },
         }),
       }
     );
 
-    if (!paymentResponse.ok) {
-      const errorData = await paymentResponse.json();
-      console.error("Midtrans API Error:", errorData);
+    const snapData = await snapResponse.json();
+
+    if (!snapResponse.ok) {
+      console.error("Midtrans SNAP Error:", snapData);
       return NextResponse.json(
-        {
-          error: `Failed to create payment link: ${
-            errorData.error_messages?.[0] || "Unknown error"
-          }`,
-        },
+        { error: "Failed to create payment token" },
         { status: 500 }
       );
     }
 
-    const paymentJson = await paymentResponse.json();
     return NextResponse.json({
-      invoiceUrl: paymentJson.payment_url,
+      token: snapData.token,
       orderId: orderId,
     });
   } catch (error) {
-    console.error("Payment link creation error:", error);
+    console.error("Payment creation error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
