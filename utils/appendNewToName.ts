@@ -1,8 +1,17 @@
 export default function appendNewToName(name: string | null) {
   if (!name) return "generated-room.jpg";
 
-  const insertPos = name.indexOf(".");
-  if (insertPos === -1) return `${name}-generated`;
+  // Normalize the filename first
+  const normalizedName = name.toLowerCase();
 
-  return name.substring(0, insertPos).concat("-new", name.substring(insertPos));
+  // Get file extension
+  const extensions = [".jpg", ".jpeg", ".png", ".webp"];
+  let fileExtension =
+    extensions.find((ext) => normalizedName.endsWith(ext)) || ".jpg";
+
+  // Remove any existing extensions from the name
+  const baseName = name.replace(/\.(jpg|jpeg|png|webp)$/i, "");
+
+  // Return formatted filename
+  return `${baseName}-new${fileExtension}`;
 }
