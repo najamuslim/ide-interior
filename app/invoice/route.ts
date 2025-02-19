@@ -90,7 +90,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           transaction_details: {
             order_id: orderId,
-            gross_amount: 25000,
+            gross_amount: 9700,
           },
           credit_card: {
             secure: true,
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
           item_details: [
             {
               id: "1",
-              price: 25000,
+              price: 9700,
               quantity: 1,
               name: `Design for ${room} - ${theme} theme`,
               url: baseCallbackUrl,
@@ -110,9 +110,6 @@ export async function POST(request: Request) {
             theme,
             room,
             userId: user?.id || "guest",
-          },
-          callbacks: {
-            finish: baseCallbackUrl,
           },
         }),
       }
