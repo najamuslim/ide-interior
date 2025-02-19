@@ -12,9 +12,9 @@ import "../styles/globals.css";
 
 // SEO Constants
 const siteConfig = {
-  title: "Desain Interior - AI Interior Design",
+  title: "Aplikasi AI untuk Desain Interior",
   description:
-    "Ciptakan ruangan impian Anda dalam beberapa detik dengan bantuan AI. Desain interior profesional untuk rumah dan kantor Anda.",
+    "Ubah tampilan ruangan Anda dengan Ide Interior, aplikasi AI untuk desain interior yang mudah dan terjangkau. Unggah foto, pilih tema, dan lihat transformasi ruangan dalam hitungan detik. Coba sekarang!",
   ogImage: "https://ideinteriorai.com/favicon.ico",
   siteName: "ideinteriorai.com",
   siteUrl: "https://ideinteriorai.com",
@@ -136,6 +136,13 @@ export default function RootLayout({
           <meta name="format-detection" content="telephone=no" />
           <meta name="mobile-web-app-capable" content="yes" />
           <meta name="theme-color" content="#17181C" />
+
+          {/* Add Midtrans Snap */}
+          <Script
+            src="https://app.sandbox.midtrans.com/snap/snap.js"
+            data-client-key={process.env.MIDTRANS_CLIENT_KEY}
+            strategy="beforeInteractive"
+          />
         </head>
         <body className="bg-[#17181C] text-white">
           {children}

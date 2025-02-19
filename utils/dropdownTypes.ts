@@ -10,21 +10,21 @@ export type themeType =
   | "Japandi"
   | "Bohemian"
   | "Rustic"
-  | "Art Deco";
+  | "Art_Deco";
 
 export type roomType =
-  | "Living Room"
-  | "Dining Room"
+  | "Living_Room"
+  | "Dining_Room"
   | "Bedroom"
   | "Bathroom"
   | "Office"
-  | "Gaming Room"
+  | "Gaming_Room"
   | "Kitchen"
-  | "Family Room"
+  | "Family_Room"
   | "Terrace"
-  | "Study Room"
-  | "Prayer Room"
-  | "Laundry Room"
+  | "Study_Room"
+  | "Prayer_Room"
+  | "Laundry_Room"
   | "Library"
   | "Balcony";
 
@@ -40,22 +40,22 @@ export const themeTranslations: Record<themeType, string> = {
   Japandi: "Japandi",
   Bohemian: "Bohemian",
   Rustic: "Rustic",
-  "Art Deco": "Art Deco",
+  Art_Deco: "Art Deco",
 };
 
 export const roomTranslations: Record<roomType, string> = {
-  "Living Room": "Ruang Tamu",
-  "Family Room": "Ruang Keluarga",
-  "Dining Room": "Ruang Makan",
+  Living_Room: "Ruang Tamu",
+  Family_Room: "Ruang Keluarga",
+  Dining_Room: "Ruang Makan",
   Kitchen: "Dapur",
   Bedroom: "Kamar Tidur",
   Bathroom: "Kamar Mandi",
-  "Study Room": "Ruang Belajar",
+  Study_Room: "Ruang Belajar",
   Office: "Kantor",
-  "Prayer Room": "Musholla",
+  Prayer_Room: "Musholla",
   Terrace: "Teras",
-  "Gaming Room": "Ruang Gaming",
-  "Laundry Room": "Ruang Laundry",
+  Gaming_Room: "Ruang Gaming",
+  Laundry_Room: "Ruang Laundry",
   Library: "Perpustakaan",
   Balcony: "Balkon",
 };
@@ -84,5 +84,5 @@ export const getEnglishRoom = (indonesianRoom: string): roomType => {
   const entry = Object.entries(roomTranslations).find(
     ([_, indo]) => indo === indonesianRoom
   );
-  return (entry?.[0] as roomType) || "Living Room";
+  return (entry?.[0] as roomType) || "Living_Room";
 };

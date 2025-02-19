@@ -96,6 +96,15 @@ const uploadManager = new UploadManager({
     : "free",
 });
 
+// Add type for window.snap
+declare global {
+  interface Window {
+    snap: {
+      pay: (token: string, options: any) => void;
+    };
+  }
+}
+
 // Create a wrapper component that uses searchParams
 function DreamPageContent() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -109,13 +118,13 @@ function DreamPageContent() {
   const [photoName, setPhotoName] = useState<string | null>(null);
   const [theme, setTheme] = useState<themeType>(
     (searchParams?.get("theme")
-      ? decodeURIComponent(searchParams.get("theme")!)
+      ? searchParams.get("theme")!
       : "Modern") as themeType
   );
   const [room, setRoom] = useState<roomType>(
     (searchParams?.get("room")
-      ? decodeURIComponent(searchParams.get("room")!)
-      : "Living Room") as roomType
+      ? searchParams.get("room")!
+      : "Living_Room") as roomType
   );
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
   const processedInvoiceRef = useRef<string | null>(null);
@@ -290,17 +299,49 @@ function DreamPageContent() {
       });
 
       if (!paymentResponse.ok) {
-        throw new Error("Failed to create invoice");
+        throw new Error("Failed to create payment");
       }
 
-      const paymentJson = await paymentResponse.json();
-      if (!paymentJson.invoiceUrl) {
-        setError("Failed to create invoice");
-        return;
-      }
+      const { token, orderId } = await paymentResponse.json();
 
-      // Redirect to payment
-      window.location.href = paymentJson.invoiceUrl;
+      // Open Snap popup
+      window.snap.pay(token, {
+        onSuccess: async function (result: any) {
+          console.log("Payment success:", result);
+          // Start image generation
+          const generationResponse = await fetch("/generate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              imageUrl: fileUrl,
+              theme,
+              room,
+              orderId,
+            }),
+          });
+
+          if (!generationResponse.ok) {
+            throw new Error("Failed to generate image");
+          }
+
+          const generatedImage = await generationResponse.json();
+          setRestoredImage(generatedImage[1]);
+        },
+        onPending: function (result: any) {
+          console.log("Payment pending:", result);
+          setError("Pembayaran dalam proses");
+        },
+        onError: function (result: any) {
+          console.error("Payment error:", result);
+          setError("Pembayaran gagal");
+        },
+        onClose: function () {
+          setError("Pembayaran dibatalkan");
+          setLoading(false);
+        },
+      });
     } catch (error) {
       console.error("Error:", error);
       setError("Terjadi kesalahan");
@@ -315,7 +356,7 @@ function DreamPageContent() {
     setError(null);
     setOriginalPhoto(null);
     setTheme("Modern" as themeType);
-    setRoom("Living Room" as roomType);
+    setRoom("Living_Room" as roomType);
 
     // Clear URL params
     router.replace("/dream");
@@ -416,12 +457,51 @@ function DreamPageContent() {
                 />
               )}
               {!originalPhoto && !loading && !restoredImage && (
-                <input
-                  className="h-48"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                />
+                <div className="space-y-4">
+                  {/* Desktop File Input */}
+                  <div className="hidden sm:block">
+                    <input
+                      className="h-48"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+
+                  {/* Mobile Controls */}
+                  <div className="flex flex-col space-y-4 sm:hidden">
+                    <button
+                      onClick={() => {
+                        const input = document.createElement("input");
+                        input.type = "file";
+                        input.accept = "image/*";
+                        input.capture = "environment";
+                        input.onchange = (e) => handleFileChange(e as any);
+                        input.click();
+                      }}
+                      className="bg-blue-600 rounded-xl text-white font-medium px-4 py-3 hover:bg-blue-500 transition"
+                    >
+                      Ambil Foto
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const input = document.createElement("input");
+                        input.type = "file";
+                        input.accept = "image/*";
+                        input.onchange = (e) => handleFileChange(e as any);
+                        input.click();
+                      }}
+                      className="bg-gray-600 rounded-xl text-white font-medium px-4 py-3 hover:bg-gray-500 transition"
+                    >
+                      Pilih dari Galeri
+                    </button>
+                  </div>
+
+                  <p className="text-sm text-gray-400">
+                    Anda dapat mengambil foto baru atau memilih dari galeri
+                  </p>
+                </div>
               )}
               {originalPhoto && !restoredImage && !loading && (
                 <Image
@@ -480,7 +560,13 @@ function DreamPageContent() {
               <div className="flex space-x-2 justify-center">
                 {(restoredImage || error) && !loading && (
                   <button
-                    onClick={error ? window.location.reload : handleReset}
+                    onClick={() => {
+                      if (error) {
+                        window.location.reload();
+                      } else {
+                        handleReset();
+                      }
+                    }}
                     className="bg-blue-500 rounded-full text-white font-medium px-4 py-2 mt-8 hover:bg-blue-500/80 transition"
                   >
                     {error ? "Coba lagi" : "Desain ruangan baru"}

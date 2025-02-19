@@ -17,22 +17,26 @@ export default function Header() {
           IDEInterior
         </h1>
       </Link>
-      <div>
+      <div className="flex items-center space-x-4">
+        <Link
+          href="https://blog.ideinteriorai.com"
+          className="text-white hover:text-gray-300 hover:bg-[#1F2937] px-4 py-2 rounded-md transition-colors duration-200"
+        >
+          Blog
+        </Link>
         <SignedIn>
           <UserButton
             appearance={{
               elements: {
                 userButtonBox: "hover:bg-[#1F2937]",
-                userButtonTrigger: "text-white"
-              }
+                userButtonTrigger: "text-white",
+              },
             }}
           />
         </SignedIn>
         <SignedOut>
           <SignInButton mode="modal">
-            <button className="text-white hover:text-gray-300">
-              Sign In
-            </button>
+            <button className="text-white hover:text-gray-300">Sign In</button>
           </SignInButton>
         </SignedOut>
       </div>
