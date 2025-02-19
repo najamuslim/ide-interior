@@ -22,19 +22,44 @@ export async function POST(request: Request) {
   try {
     const { imageUrl, theme, room, orderId } = await request.json();
 
-    if (!imageUrl || !theme || !room) {
+    if (!imageUrl || !theme || !room || !orderId) {
       return NextResponse.json(
         { error: "Missing required parameters" },
         { status: 400 }
       );
     }
 
-    // Check if image already in Redis cache
-    if (orderId) {
-      const cachedResponse = await getGeneratedImage(orderId);
-      if (cachedResponse) {
-        return NextResponse.json(cachedResponse);
+    // Validate payment status first
+    const base64Credentials = Buffer.from(
+      `${process.env.MIDTRANS_SERVER_KEY}:`
+    ).toString("base64");
+
+    const paymentResponse = await fetch(
+      `${process.env.MIDTRANS_API_HOST_URL}/v2/${orderId}/status`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Basic ${base64Credentials}`,
+        },
       }
+    );
+
+    const paymentData = await paymentResponse.json();
+
+    // Only proceed if payment is settled
+    if (paymentData.transaction_status !== "settlement") {
+      return NextResponse.json(
+        { error: "Payment not completed" },
+        { status: 403 }
+      );
+    }
+
+    // Check if image already in Redis cache
+    const cachedResponse = await getGeneratedImage(orderId);
+    if (cachedResponse) {
+      return NextResponse.json(cachedResponse);
     }
 
     console.log("No cached response found, generating new image");
