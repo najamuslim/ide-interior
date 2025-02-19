@@ -139,7 +139,7 @@ export default function RootLayout({
 
           {/* Add Midtrans Snap */}
           <Script
-            src="https://app.sandbox.midtrans.com/snap/snap.js"
+            src={`${process.env.MIDTRANS_HOST_URL}/snap/snap.js`}
             data-client-key={process.env.MIDTRANS_CLIENT_KEY}
             strategy="beforeInteractive"
           />
