@@ -34,7 +34,7 @@ export default function HomePage() {
                 <h3 className="mb-1 font-medium text-lg">Sebelum</h3>
                 <Image
                   alt="Original photo of a room 1"
-                  src="/kamar-kosong.jpg"
+                  src="/empty_bedroom.jpg"
                   className="w-full object-cover h-64 rounded-2xl"
                   width={300}
                   height={300}
@@ -48,7 +48,7 @@ export default function HomePage() {
                   alt="Generated photo of a room 1"
                   width={300}
                   height={300}
-                  src="/kamar-kosong-ide.png"
+                  src="/bedroom_ide.png"
                   className="w-full object-cover h-64 rounded-2xl sm:mt-0 mt-2"
                 />
               </div>

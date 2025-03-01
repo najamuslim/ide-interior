@@ -1,150 +1,163 @@
+import { NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import redis from "../../utils/redis";
-import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import {
-  getGeneratedImage,
-  saveGeneratedImage,
-} from "../../utils/redis-helpers";
-import { themeType, roomType } from "../../utils/dropdownTypes";
+import { currentUser } from "@clerk/nextjs/server";
+import { supabase } from "../../utils/supabaseClient";
 
+// Create a ratelimit of 5 requests per 24 hours
 const ratelimit = redis
   ? new Ratelimit({
       redis: redis,
-      // 100 requests per hour per IP
-      // Masih reasonable untuk mencegah abuse tapi tidak mengganggu pengguna normal
-      limiter: Ratelimit.fixedWindow(100, "3600 s"),
+      limiter: Ratelimit.fixedWindow(5, "1440 m"),
       analytics: true,
     })
   : undefined;
 
 export async function POST(request: Request) {
   try {
-    const { imageUrl, theme, room, orderId } = await request.json();
-
-    if (!imageUrl || !theme || !room || !orderId) {
+    // Get user authentication
+    const user = await currentUser();
+    if (!user) {
       return NextResponse.json(
-        { error: "Missing required parameters" },
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    // Parse request body
+    const { imageUrl, theme, room, useCredits } = await request.json();
+
+    // Check if all required fields are provided
+    if (!imageUrl || !theme || !room) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Validate payment status first
-    const base64Credentials = Buffer.from(
-      `${process.env.MIDTRANS_SERVER_KEY}:`
-    ).toString("base64");
+    // If using credits, check if user has enough credits
+    if (useCredits) {
+      const { data: userCredits, error: creditsError } = await supabase
+        .from("user_credits")
+        .select("credits")
+        .eq("user_id", user.id)
+        .single();
 
-    const paymentResponse = await fetch(
-      `${process.env.MIDTRANS_API_HOST_URL}/v2/${orderId}/status`,
-      {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `Basic ${base64Credentials}`,
-        },
+      if (creditsError) {
+        console.error("Error fetching user credits:", creditsError);
+        return NextResponse.json(
+          { error: "Failed to check credits" },
+          { status: 500 }
+        );
       }
-    );
 
-    const paymentData = await paymentResponse.json();
+      // Check if user has enough credits
+      if (!userCredits || userCredits.credits < 1) {
+        return NextResponse.json(
+          { error: "insufficient_credits" },
+          { status: 400 }
+        );
+      }
 
-    // Only proceed if payment is settled
-    if (paymentData.transaction_status !== "settlement") {
-      return NextResponse.json(
-        { error: "Payment not completed" },
-        { status: 403 }
-      );
-    }
+      // Deduct 1 credit from user's account
+      const { error: updateError } = await supabase
+        .from("user_credits")
+        .update({ credits: userCredits.credits - 1 })
+        .eq("user_id", user.id);
 
-    // Check if image already in Redis cache
-    const cachedResponse = await getGeneratedImage(orderId);
-    if (cachedResponse) {
-      return NextResponse.json(cachedResponse);
-    }
+      if (updateError) {
+        console.error("Error updating user credits:", updateError);
+        return NextResponse.json(
+          { error: "Failed to update credits" },
+          { status: 500 }
+        );
+      }
 
-    console.log("No cached response found, generating new image");
-
-    //Rate Limiter Code
-    if (ratelimit) {
-      const headersList = headers();
-      const ipIdentifier = headersList.get("x-real-ip");
-
-      const result = await ratelimit.limit(ipIdentifier ?? "");
-
-      if (!result.success) {
-        return new Response("Too many requests. Please try again in an hour.", {
-          status: 429,
-          headers: {
-            "X-RateLimit-Limit": result.limit,
-            "X-RateLimit-Remaining": result.remaining,
-          } as any,
+      // Log the credit usage
+      const { error: logError } = await supabase
+        .from("credit_transactions")
+        .insert({
+          user_id: user.id,
+          order_id: `generation_${Date.now()}`,
+          credits_added: -1, // Negative value for usage
+          transaction_status: "completed",
         });
+
+      if (logError) {
+        console.error("Error logging credit usage:", logError);
+      }
+    } else {
+      // Apply rate limiting if not using credits
+      if (ratelimit) {
+        const headersList = headers();
+        const ipIdentifier = headersList.get("x-real-ip");
+        const identifier = ipIdentifier ?? user.id;
+
+        const result = await ratelimit.limit(identifier);
+
+        if (!result.success) {
+          return NextResponse.json(
+            {
+              error:
+                "Too many requests. Please try again later or purchase credits.",
+            },
+            { status: 429 }
+          );
+        }
       }
     }
 
-    const getPrompt = (room: string, theme: string) => {
-      if (room === "Gaming Room") {
-        return "a modern gaming room with ergonomic gaming chairs, dual or triple monitors on a sleek desk, RGB lighting, a wall-mounted TV, gaming consoles, shelves for accessories, clean and organized setup";
-      }
-      return `a realistic, functional ${theme.toLowerCase()} ${room.toLowerCase()} with high-quality furniture, practical layout, and natural lighting`;
-    };
-
-    let startResponse = await fetch(
-      "https://api.replicate.com/v1/predictions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
+    // Call Replicate for image generation
+    const response = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Token ${process.env.REPLICATE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        version:
+          "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b",
+        input: {
+          image: imageUrl,
+          prompt: `${theme} style ${room}`,
+          a_prompt:
+            "best quality, extremely detailed, photo from Pinterest, interior, cinematic photo, ultra-detailed, ultra-realistic, award-winning, interior design, natural lighting",
+          n_prompt:
+            "longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
         },
-        body: JSON.stringify({
-          version:
-            "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b",
-          input: {
-            image: imageUrl,
-            prompt: getPrompt(room, theme),
-            a_prompt:
-              "best quality, ultra-detailed, photo from Pinterest, interior, realistic furniture, natural lighting, cinematic photo, ultra-realistic, award-winning, lifelike materials, functional design, symmetrical layout",
-            n_prompt:
-              "longbody, lowres, bad anatomy, unrealistic shapes, disproportionate furniture, floating objects, distorted layout, bad lighting, extra elements, poor quality, low quality",
-          },
-        }),
-      }
-    );
+      }),
+    });
 
-    let jsonStartResponse = await startResponse.json();
-    let endpointUrl = jsonStartResponse.urls.get;
+    if (!response.ok) {
+      throw new Error(`Replicate API error: ${response.statusText}`);
+    }
 
-    // GET request to get the status of the image restoration process
-    let restoredImage: string | null = null;
-    while (!restoredImage) {
-      console.log("polling for result...");
-      let finalResponse = await fetch(endpointUrl, {
-        method: "GET",
+    const prediction = await response.json();
+    const pollingUrl = prediction.urls.get;
+
+    // Poll for the result
+    let generatedImage = null;
+    while (!generatedImage) {
+      const pollResponse = await fetch(pollingUrl, {
         headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + process.env.REPLICATE_API_KEY,
+          Authorization: `Token ${process.env.REPLICATE_API_KEY}`,
         },
       });
-      let jsonFinalResponse = await finalResponse.json();
+      const pollResult = await pollResponse.json();
 
-      if (jsonFinalResponse.status === "succeeded") {
-        restoredImage = jsonFinalResponse.output;
-        // Save complete response to Redis
-        if (orderId) {
-          await saveGeneratedImage(orderId, JSON.stringify(restoredImage));
-        }
+      if (pollResult.status === "succeeded") {
+        generatedImage = pollResult.output;
         break;
-      } else if (jsonFinalResponse.status === "failed") {
-        break;
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } else if (pollResult.status === "failed") {
+        throw new Error("Image generation failed");
       }
+
+      // Wait before polling again
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    return NextResponse.json(
-      restoredImage ? restoredImage : "Failed to restore image"
-    );
+    return NextResponse.json(generatedImage);
   } catch (error) {
     console.error("Error generating image:", error);
     return NextResponse.json(

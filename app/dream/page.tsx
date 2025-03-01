@@ -2,10 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { UrlBuilder, UploadManager } from "@bytescale/sdk";
-import { UploadWidgetConfig } from "@bytescale/upload-widget";
-import { UploadDropzone } from "@bytescale/upload-widget-react";
 import { CompareSlider } from "../../components/CompareSlider";
 import Footer from "../../components/Footer";
 import Header from "../../components/Header";
@@ -20,8 +18,6 @@ import {
   rooms,
   themeType,
   themes,
-  getEnglishTheme,
-  getEnglishRoom,
   getIndonesianTheme,
   getIndonesianRoom,
   themeTranslations,
@@ -31,64 +27,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import imageCompression from "browser-image-compression";
-
-const options: UploadWidgetConfig = {
-  apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
-    ? process.env.NEXT_PUBLIC_UPLOAD_API_KEY
-    : "free",
-  maxFileCount: 1,
-  mimeTypes: ["image/jpeg", "image/png", "image/jpg"],
-  editor: { images: { crop: false } },
-  styles: {
-    colors: {
-      primary: "#2563EB",
-      error: "#d23f4d",
-      shade100: "#fff",
-      shade200: "#fffe",
-      shade300: "#fffd",
-      shade400: "#fffc",
-      shade500: "#fff9",
-      shade600: "#fff7",
-      shade700: "#fff2",
-      shade800: "#fff1",
-      shade900: "#ffff",
-    },
-  },
-  locale: {
-    customValidationFailed: "Gagal memvalidasi file.",
-    orDragDropFile: "...atau drag dan drop file.",
-    orDragDropImage: "...atau drag dan drop gambar.",
-    processingFile: "Mengolah file...",
-    addAnotherFile: "Tambahkan file lain.",
-    addAnotherImage: "Tambahkan gambar lain.",
-    cancel: "Batal",
-    cancelInPreviewWindow: "Batal dalam jendela pratinjau",
-    unsupportedFileType: "Tipe file tidak didukung.",
-    uploadImage: "Unggah Gambar",
-    "cancelled!": "dibatalkan",
-    "error!": "kesalahan",
-    "removed!": "dihapus",
-    continue: "lanjutkan",
-    crop: "potong",
-    done: "selesai",
-    finish: "selesai",
-    finishIcon: true,
-    image: "gambar",
-    maxFilesReached: "jumlah file maksimum telah tercapai",
-    maxImagesReached: "jumlah gambar maksimum telah tercapai",
-    maxSize: "ukuran maksimum",
-    next: "berikutnya",
-    of: "dari",
-    orDragDropFiles: "...atau drag dan drop file",
-    orDragDropImages: "...atau drag dan drop gambar",
-    pleaseWait: "tolong tunggu",
-    remove: "hapus",
-    skip: "lewati",
-    uploadFile: "unggah file",
-    uploadFiles: "unggah file",
-    uploadImages: "unggah gambar",
-  },
-};
+import Link from "next/link";
+import { supabase } from "../../utils/supabaseClient";
+import { triggerCreditUpdate } from "../../utils/fetchUserCredits";
 
 const uploadManager = new UploadManager({
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
@@ -107,7 +48,7 @@ declare global {
 
 // Create a wrapper component that uses searchParams
 function DreamPageContent() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, userId } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [restoredImage, setRestoredImage] = useState<string | null>(null);
@@ -127,7 +68,8 @@ function DreamPageContent() {
       : "Living_Room") as roomType
   );
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
-  const processedInvoiceRef = useRef<string | null>(null);
+  const [userCredits, setUserCredits] = useState<number>(0);
+  const [loadingCredits, setLoadingCredits] = useState<boolean>(true);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -135,114 +77,35 @@ function DreamPageContent() {
     }
   }, [isLoaded, isSignedIn]);
 
+  // Fetch user credits
   useEffect(() => {
-    const checkPayment = async () => {
-      const status = searchParams.get("status");
-      const orderId = searchParams.get("order_id");
+    const fetchUserCredits = async () => {
+      if (userId) {
+        try {
+          setLoadingCredits(true);
+          const { data, error } = await supabase
+            .from("user_credits")
+            .select("credits")
+            .eq("user_id", userId)
+            .single();
 
-      if (
-        !orderId ||
-        status !== "success" ||
-        processedInvoiceRef.current === orderId
-      ) {
-        return;
-      }
-
-      processedInvoiceRef.current = orderId;
-      let isSubscribed = true;
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Get payment data first
-        const response = await fetch(`/check-invoice?id=${orderId}`);
-        const data = await response.json();
-
-        if (!isSubscribed) return;
-
-        if (response.ok && data.status === "PAID" && data.metadata) {
-          const { theme, room, originalPhoto } = JSON.parse(data.metadata);
-
-          // Validate theme and room from metadata
-          if (!theme || !room || !originalPhoto) {
-            setError("Data tidak lengkap");
-            return;
-          }
-
-          // Set states from metadata
-          setTheme(theme as themeType);
-          setRoom(room as roomType);
-          setOriginalPhoto(originalPhoto);
-
-          // Generate image
-          const generationResponse = await fetch("/generate", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              imageUrl: originalPhoto,
-              theme,
-              room,
-              orderId,
-            }),
-          });
-
-          if (!isSubscribed) return;
-
-          const generatedImage = await generationResponse.json();
-          if (generationResponse.ok) {
-            setRestoredImage(generatedImage[1]);
+          if (error) {
+            console.error("Error fetching credits:", error);
           } else {
-            setError(generatedImage.error || "Gagal generate gambar");
+            setUserCredits(data?.credits || 0);
           }
-        } else {
-          setError(data.error || "Pembayaran belum selesai");
-        }
-      } catch (error) {
-        console.error("Error:", error);
-        if (isSubscribed) {
-          setError("Gagal memuat data pembayaran");
-        }
-      } finally {
-        if (isSubscribed) {
-          setLoading(false);
+        } catch (error) {
+          console.error("Failed to fetch credits:", error);
+        } finally {
+          setLoadingCredits(false);
         }
       }
-
-      return () => {
-        isSubscribed = false;
-      };
     };
 
-    checkPayment();
-  }, [searchParams]);
-
-  const UploadDropZone = () => (
-    <UploadDropzone
-      options={options}
-      onUpdate={({ uploadedFiles }) => {
-        if (uploadedFiles.length !== 0) {
-          const image = uploadedFiles[0];
-          const imageName = image.originalFile.originalFileName;
-          const imageUrl = UrlBuilder.url({
-            accountId: image.accountId,
-            filePath: image.filePath,
-            options: {
-              transformation: "preset",
-              transformationPreset: "thumbnail",
-            },
-          });
-          setPhotoName(imageName);
-          setOriginalPhoto(imageUrl);
-          generatePhoto(imageUrl);
-        }
-      }}
-      width="400px"
-      height="250px"
-    />
-  );
+    if (userId) {
+      fetchUserCredits();
+    }
+  }, [userId]);
 
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -273,6 +136,16 @@ function DreamPageContent() {
       // Set the states and generate photo
       setPhotoName(file.name);
       setOriginalPhoto(imageUrl);
+
+      // Check if user has enough credits
+      if (userCredits < 1) {
+        setError(
+          "Anda tidak memiliki credits yang cukup. Silakan beli credits terlebih dahulu."
+        );
+        setLoading(false);
+        return;
+      }
+
       generatePhoto(imageUrl);
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -286,65 +159,40 @@ function DreamPageContent() {
       setLoading(true);
       setError(null);
 
-      const paymentResponse = await fetch("/invoice", {
+      // Start image generation directly without payment
+      const generationResponse = await fetch("/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          originalPhoto: fileUrl,
-          theme: theme,
-          room: room,
+          imageUrl: fileUrl,
+          theme,
+          room,
+          useCredits: true,
         }),
       });
 
-      if (!paymentResponse.ok) {
-        throw new Error("Failed to create payment");
+      if (!generationResponse.ok) {
+        const errorData = await generationResponse.json();
+        if (errorData.error === "insufficient_credits") {
+          setError(
+            "Anda tidak memiliki credits yang cukup. Silakan beli credits terlebih dahulu."
+          );
+          return;
+        }
+        throw new Error("Failed to generate image");
       }
 
-      const { token, orderId } = await paymentResponse.json();
+      const generatedImage = await generationResponse.json();
+      setRestoredImage(generatedImage[1]);
 
-      // Open Snap popup
-      window.snap.pay(token, {
-        onSuccess: async function (result: any) {
-          console.log("Payment success:", result);
-          // Start image generation
-          const generationResponse = await fetch("/generate", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              imageUrl: fileUrl,
-              theme,
-              room,
-              orderId,
-            }),
-          });
-
-          if (!generationResponse.ok) {
-            throw new Error("Failed to generate image");
-          }
-
-          const generatedImage = await generationResponse.json();
-          setRestoredImage(generatedImage[1]);
-        },
-        onPending: function (result: any) {
-          console.log("Payment pending:", result);
-          setError("Pembayaran dalam proses");
-        },
-        onError: function (result: any) {
-          console.error("Payment error:", result);
-          setError("Pembayaran gagal");
-        },
-        onClose: function () {
-          setError("Pembayaran dibatalkan");
-          setLoading(false);
-        },
-      });
+      // Update local credit count
+      setUserCredits((prevCredits) => Math.max(0, prevCredits - 1));
+      triggerCreditUpdate(userId!);
     } catch (error) {
       console.error("Error:", error);
-      setError("Terjadi kesalahan");
+      setError("Terjadi kesalahan saat menghasilkan gambar");
     } finally {
       setLoading(false);
     }
@@ -369,6 +217,29 @@ function DreamPageContent() {
         <h1 className="mx-auto max-w-4xl font-display text-4xl font-bold tracking-normal text-slate-100 sm:text-6xl mb-5">
           Desain ruang <span className="text-blue-600">impian</span> anda
         </h1>
+
+        {/* Credits display */}
+        <div className="mb-8 text-center">
+          {loadingCredits ? (
+            <p className="text-gray-400">Memuat credits...</p>
+          ) : (
+            <div className="flex flex-col items-center">
+              <p className="text-xl">
+                <span className="font-bold text-blue-500">{userCredits}</span>{" "}
+                credits tersisa
+              </p>
+              {userCredits < 1 && (
+                <Link
+                  href="/pricing"
+                  className="mt-2 text-blue-500 hover:text-blue-400 underline"
+                >
+                  Beli credits sekarang
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+
         <ResizablePanel>
           <AnimatePresence mode="wait">
             <motion.div className="flex justify-between items-center w-full flex-col mt-4">
@@ -465,6 +336,7 @@ function DreamPageContent() {
                       type="file"
                       accept="image/*"
                       onChange={handleFileChange}
+                      disabled={userCredits < 1}
                     />
                   </div>
 
@@ -472,6 +344,7 @@ function DreamPageContent() {
                   <div className="flex flex-col space-y-4 sm:hidden">
                     <button
                       onClick={() => {
+                        if (userCredits < 1) return;
                         const input = document.createElement("input");
                         input.type = "file";
                         input.accept = "image/*";
@@ -479,28 +352,50 @@ function DreamPageContent() {
                         input.onchange = (e) => handleFileChange(e as any);
                         input.click();
                       }}
-                      className="bg-blue-600 rounded-xl text-white font-medium px-4 py-3 hover:bg-blue-500 transition"
+                      className={`rounded-xl font-medium px-4 py-3 transition ${
+                        userCredits < 1
+                          ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                          : "bg-blue-600 text-white hover:bg-blue-500"
+                      }`}
+                      disabled={userCredits < 1}
                     >
                       Ambil Foto
                     </button>
 
                     <button
                       onClick={() => {
+                        if (userCredits < 1) return;
                         const input = document.createElement("input");
                         input.type = "file";
                         input.accept = "image/*";
                         input.onchange = (e) => handleFileChange(e as any);
                         input.click();
                       }}
-                      className="bg-gray-600 rounded-xl text-white font-medium px-4 py-3 hover:bg-gray-500 transition"
+                      className={`rounded-xl font-medium px-4 py-3 transition ${
+                        userCredits < 1
+                          ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                          : "bg-gray-600 text-white hover:bg-gray-500"
+                      }`}
+                      disabled={userCredits < 1}
                     >
                       Pilih dari Galeri
                     </button>
                   </div>
 
                   <p className="text-sm text-gray-400">
-                    Anda dapat mengambil foto baru atau memilih dari galeri
+                    {userCredits < 1
+                      ? "Anda membutuhkan minimal 1 credit untuk menghasilkan gambar"
+                      : "Anda dapat mengambil foto baru atau memilih dari galeri"}
                   </p>
+
+                  {userCredits < 1 && (
+                    <Link
+                      href="/pricing"
+                      className="block mt-4 bg-blue-600 rounded-xl text-white font-medium px-4 py-3 hover:bg-blue-500 transition"
+                    >
+                      Beli Credits Sekarang
+                    </Link>
+                  )}
                 </div>
               )}
               {originalPhoto && !restoredImage && !loading && (
@@ -555,6 +450,14 @@ function DreamPageContent() {
                   role="alert"
                 >
                   <span className="block sm:inline">{error}</span>
+                  {error.includes("credits") && (
+                    <Link
+                      href="/pricing"
+                      className="block mt-2 text-red-700 font-medium hover:underline"
+                    >
+                      Beli Credits Sekarang
+                    </Link>
+                  )}
                 </div>
               )}
               <div className="flex space-x-2 justify-center">
