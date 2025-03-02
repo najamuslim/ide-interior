@@ -28,7 +28,7 @@ import { useAuth } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import imageCompression from "browser-image-compression";
 import Link from "next/link";
-import { supabase } from "../../utils/supabaseClient";
+import { fetchUserCredits, onCreditUpdate } from "../../utils/fetchUserCredits";
 import { triggerCreditUpdate } from "../../utils/fetchUserCredits";
 
 const uploadManager = new UploadManager({
@@ -77,34 +77,30 @@ function DreamPageContent() {
     }
   }, [isLoaded, isSignedIn]);
 
-  // Fetch user credits
+  // Modify the useEffect for credits
   useEffect(() => {
-    const fetchUserCredits = async () => {
+    const getCredits = async () => {
       if (userId) {
-        try {
-          setLoadingCredits(true);
-          const { data, error } = await supabase
-            .from("user_credits")
-            .select("credits")
-            .eq("user_id", userId)
-            .single();
-
-          if (error) {
-            console.error("Error fetching credits:", error);
-          } else {
-            setUserCredits(data?.credits || 0);
-          }
-        } catch (error) {
-          console.error("Failed to fetch credits:", error);
-        } finally {
-          setLoadingCredits(false);
-        }
+        const userCredits = await fetchUserCredits(userId);
+        setUserCredits(userCredits);
       }
     };
 
-    if (userId) {
-      fetchUserCredits();
-    }
+    // Initial fetch
+    getCredits();
+
+    // Register for credit updates
+    const unsubscribe = onCreditUpdate((updatedUserId: string) => {
+      if (updatedUserId === userId) {
+        getCredits();
+      }
+    });
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribe();
+      setLoadingCredits(false);
+    };
   }, [userId]);
 
   const handleFileChange = async (
@@ -159,7 +155,6 @@ function DreamPageContent() {
       setLoading(true);
       setError(null);
 
-      // Start image generation directly without payment
       const generationResponse = await fetch("/generate", {
         method: "POST",
         headers: {
@@ -173,6 +168,8 @@ function DreamPageContent() {
         }),
       });
 
+      console.log(generationResponse);
+
       if (!generationResponse.ok) {
         const errorData = await generationResponse.json();
         if (errorData.error === "insufficient_credits") {
@@ -185,10 +182,9 @@ function DreamPageContent() {
       }
 
       const generatedImage = await generationResponse.json();
-      setRestoredImage(generatedImage[1]);
+      console.log(generatedImage);
+      setRestoredImage(generatedImage);
 
-      // Update local credit count
-      setUserCredits((prevCredits) => Math.max(0, prevCredits - 1));
       triggerCreditUpdate(userId!);
     } catch (error) {
       console.error("Error:", error);

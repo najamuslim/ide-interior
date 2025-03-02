@@ -59,54 +59,38 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+    }
 
-      // Deduct 1 credit from user's account
-      const { error: updateError } = await supabase
-        .from("user_credits")
-        .update({ credits: userCredits.credits - 1 })
-        .eq("user_id", user.id);
+    // Apply rate limiting if not using credits
+    if (ratelimit) {
+      const headersList = headers();
+      const ipIdentifier = headersList.get("x-real-ip");
+      const identifier = ipIdentifier ?? user.id;
 
-      if (updateError) {
-        console.error("Error updating user credits:", updateError);
+      const result = await ratelimit.limit(identifier);
+
+      if (!result.success) {
         return NextResponse.json(
-          { error: "Failed to update credits" },
-          { status: 500 }
+          {
+            error:
+              "Too many requests. Please try again later or purchase credits.",
+          },
+          { status: 429 }
         );
       }
-
-      // Log the credit usage
-      const { error: logError } = await supabase
-        .from("credit_transactions")
-        .insert({
-          user_id: user.id,
-          order_id: `generation_${Date.now()}`,
-          credits_added: -1, // Negative value for usage
-          transaction_status: "completed",
-        });
-
-      if (logError) {
-        console.error("Error logging credit usage:", logError);
-      }
-    } else {
-      // Apply rate limiting if not using credits
-      if (ratelimit) {
-        const headersList = headers();
-        const ipIdentifier = headersList.get("x-real-ip");
-        const identifier = ipIdentifier ?? user.id;
-
-        const result = await ratelimit.limit(identifier);
-
-        if (!result.success) {
-          return NextResponse.json(
-            {
-              error:
-                "Too many requests. Please try again later or purchase credits.",
-            },
-            { status: 429 }
-          );
-        }
-      }
     }
+
+    const getPrompt = (room: string, theme: string) => {
+      if (room === "Gaming Room") {
+        return "a modern gaming room with ergonomic gaming chairs, dual or triple monitors on a sleek desk, RGB lighting, a wall-mounted TV, gaming consoles, shelves for accessories, clean and organized setup";
+      }
+      return `a realistic, functional ${theme.toLowerCase()} ${room.toLowerCase()} with high-quality furniture, practical layout, and natural lighting`;
+    };
+
+    const JagilleyV =
+      "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b";
+    const UsamEhsan =
+      "51778c7522eb99added82c0c52873d7a391eecf5fcc3ac7856613b7e6443f2f7";
 
     // Call Replicate for image generation
     const response = await fetch("https://api.replicate.com/v1/predictions", {
@@ -116,15 +100,11 @@ export async function POST(request: Request) {
         Authorization: `Token ${process.env.REPLICATE_API_KEY}`,
       },
       body: JSON.stringify({
-        version:
-          "854e8727697a057c525cdb45ab037f64ecca770a1769cc52287c2e56472a247b",
+        version: UsamEhsan,
         input: {
           image: imageUrl,
-          prompt: `${theme} style ${room}`,
-          a_prompt:
-            "best quality, extremely detailed, photo from Pinterest, interior, cinematic photo, ultra-detailed, ultra-realistic, award-winning, interior design, natural lighting",
-          n_prompt:
-            "longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
+          prompt: getPrompt(room, theme),
+          strength: 0.5,
         },
       }),
     });
@@ -155,6 +135,47 @@ export async function POST(request: Request) {
 
       // Wait before polling again
       await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Only deduct credits if image generation was successful and we're using credits
+    if (useCredits && generatedImage) {
+      const { data: userCredits, error: creditsError } = await supabase
+        .from("user_credits")
+        .select("credits")
+        .eq("user_id", user.id)
+        .single();
+
+      if (creditsError) {
+        console.error("Error fetching user credits:", creditsError);
+        // Still return the generated image even if credit deduction fails
+        return NextResponse.json(generatedImage);
+      }
+
+      // Deduct 1 credit from user's account
+      const { error: updateError } = await supabase
+        .from("user_credits")
+        .update({ credits: userCredits.credits - 1 })
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        console.error("Error updating user credits:", updateError);
+        // Still return the generated image even if credit deduction fails
+        return NextResponse.json(generatedImage);
+      }
+
+      // Log the credit usage
+      const { error: logError } = await supabase
+        .from("credit_transactions")
+        .insert({
+          user_id: user.id,
+          order_id: `generation_${Date.now()}`,
+          credits_added: -1, // Negative value for usage
+          transaction_status: "completed",
+        });
+
+      if (logError) {
+        console.error("Error logging credit usage:", logError);
+      }
     }
 
     return NextResponse.json(generatedImage);

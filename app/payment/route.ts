@@ -117,11 +117,11 @@ export async function POST(request: Request) {
             userId: user.id,
             plan,
           },
-          custom_field1: JSON.stringify({
+          custom_field1: {
             credits: selectedPackage.credits,
             userId: user.id,
             plan,
-          }),
+          },
         }),
       }
     );

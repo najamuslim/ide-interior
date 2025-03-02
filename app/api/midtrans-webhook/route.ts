@@ -26,13 +26,11 @@ export async function POST(request: Request) {
 
     // Handle the notification
     const { transaction_status, order_id } = body;
-    console.log("Transaction status:", transaction_status);
 
     // Get metadata from the transaction
     const metadata =
       body.metadata ||
       (body.custom_field1 ? JSON.parse(body.custom_field1) : null);
-    console.log("Metadata:", metadata);
 
     // Only process successful transactions
     if (
@@ -48,12 +46,6 @@ export async function POST(request: Request) {
       }
 
       const { userId, credits } = metadata;
-      console.log(
-        "Updating credits for user:",
-        userId,
-        "adding credits:",
-        credits
-      );
 
       // Update user credits in the database
       const { data: existingCredits } = await supabase
