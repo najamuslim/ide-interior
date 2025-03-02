@@ -27,10 +27,14 @@ export async function POST(request: Request) {
     // Handle the notification
     const { transaction_status, order_id } = body;
 
-    // Get metadata from the transaction
-    const metadata =
-      body.metadata ||
-      (body.custom_field1 ? JSON.parse(body.custom_field1) : null);
+    // Get metadata directly from the metadata field
+    const metadata = body.metadata; // Use metadata directly instead of custom_field1
+
+    console.log("Processing transaction:", {
+      status: transaction_status,
+      orderId: order_id,
+      metadata,
+    }); // Add logging
 
     // Only process successful transactions
     if (
