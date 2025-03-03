@@ -4,11 +4,31 @@ import crypto from "crypto";
 import { triggerCreditUpdate } from "../../../utils/fetchUserCredits";
 
 export async function POST(request: Request) {
+  // Always respond with 200 first
+  const response = NextResponse.json({ success: true }, { status: 200 });
+
   try {
     // Read the request body once and store it
     const rawBody = await request.text();
     const body = JSON.parse(rawBody);
 
+    // Log the incoming webhook data
+    console.log("Webhook received:", body);
+
+    // Process the webhook asynchronously
+    processWebhook(body).catch((error) => {
+      console.error("Error processing webhook:", error);
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Error parsing webhook:", error);
+    return response; // Still return 200 even if parsing fails
+  }
+}
+
+async function processWebhook(body: any) {
+  try {
     // Verify the signature
     const serverKey = process.env.MIDTRANS_SERVER_KEY;
     const signature = body.signature_key;
@@ -21,20 +41,19 @@ export async function POST(request: Request) {
       .digest("hex");
 
     if (signature !== expectedSignature) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      console.error("Invalid signature received");
+      return;
     }
 
     // Handle the notification
     const { transaction_status, order_id } = body;
-
-    // Get metadata directly from the metadata field
-    const metadata = body.metadata; // Use metadata directly instead of custom_field1
+    const metadata = body.metadata;
 
     console.log("Processing transaction:", {
       status: transaction_status,
       orderId: order_id,
       metadata,
-    }); // Add logging
+    });
 
     // Only process successful transactions
     if (
@@ -43,10 +62,7 @@ export async function POST(request: Request) {
     ) {
       if (!metadata || !metadata.userId || !metadata.credits) {
         console.error("Missing required metadata:", metadata);
-        return NextResponse.json(
-          { error: "Missing required metadata" },
-          { status: 400 }
-        );
+        return;
       }
 
       const { userId, credits } = metadata;
@@ -72,10 +88,7 @@ export async function POST(request: Request) {
 
       if (updateError) {
         console.error("Error updating credits:", updateError);
-        return NextResponse.json(
-          { error: "Failed to update credits" },
-          { status: 500 }
-        );
+        return;
       }
 
       // Log the transaction
@@ -95,13 +108,7 @@ export async function POST(request: Request) {
       // Trigger credit update to refresh the UI
       triggerCreditUpdate(userId);
     }
-
-    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Webhook error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error("Error processing webhook:", error);
   }
 }
