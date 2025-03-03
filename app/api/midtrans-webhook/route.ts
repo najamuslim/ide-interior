@@ -84,14 +84,26 @@ async function processWebhook(body: any) {
       console.log("Starting credit update for user:", userId);
 
       // Update user credits in the database
+      console.log("Fetching existing credits from Supabase...");
       const { data: existingCredits, error: fetchError } = await supabase
         .from("user_credits")
         .select("credits")
         .eq("user_id", userId)
         .single();
 
+      console.log("Supabase fetch response:", {
+        data: existingCredits,
+        error: fetchError,
+        userId,
+      });
+
       if (fetchError) {
-        console.error("Error fetching existing credits:", fetchError);
+        console.error("Supabase fetch error details:", {
+          code: fetchError.code,
+          message: fetchError.message,
+          details: fetchError.details,
+          hint: fetchError.hint,
+        });
         return;
       }
 
@@ -100,22 +112,36 @@ async function processWebhook(body: any) {
       const newCredits = (existingCredits?.credits || 0) + credits;
       console.log("Calculated new credits:", newCredits);
 
-      const { error: updateError } = await supabase.from("user_credits").upsert(
-        {
-          user_id: userId,
-          credits: newCredits,
-        },
-        {
-          onConflict: "user_id",
-        }
-      );
+      console.log("Attempting to upsert credits to Supabase...");
+      const { data: updateData, error: updateError } = await supabase
+        .from("user_credits")
+        .upsert(
+          {
+            user_id: userId,
+            credits: newCredits,
+          },
+          {
+            onConflict: "user_id",
+          }
+        )
+        .select(); // Add this to see the updated data
+
+      console.log("Supabase update response:", {
+        data: updateData,
+        error: updateError,
+        userId,
+        newCredits,
+      });
 
       if (updateError) {
-        console.error("Error updating credits:", updateError);
+        console.error("Supabase update error details:", {
+          code: updateError.code,
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+        });
         return;
       }
-
-      console.log("Credits updated successfully");
 
       // Log the transaction
       const { error: logError } = await supabase

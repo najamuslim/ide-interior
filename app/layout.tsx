@@ -143,6 +143,21 @@ export default function RootLayout({
             data-client-key={process.env.MIDTRANS_CLIENT_KEY}
             strategy="beforeInteractive"
           />
+
+          <script
+            async
+            src="https://www.googletagmanager.com/gtag/js?id=AW-16905274859"
+          ></script>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'AW-16905274859');
+              `,
+            }}
+          />
         </head>
         <body className="bg-[#17181C] text-white">
           {children}
