@@ -1,8 +1,9 @@
-import Image from "next/image";
+"use client";
 import Link from "next/link";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import SquigglyLines from "../components/SquigglyLines";
+import { CompareSlider } from "../components/CompareSlider";
 
 export default function HomePage() {
   return (
@@ -22,89 +23,16 @@ export default function HomePage() {
         </h2>
         <Link
           className="bg-blue-600 rounded-xl text-white font-medium px-4 py-3 sm:mt-10 mt-8 hover:bg-blue-500 transition"
-          href="/dream"
+          href="/desain"
         >
           Mulai Sekarang!
         </Link>
         <div className="flex justify-between items-center w-full flex-col sm:mt-10 mt-6">
           <div className="flex flex-col space-y-10 mt-4 mb-16">
-            {/* Pasangan Foto 1 */}
-            <div className="flex sm:space-x-8 sm:flex-row flex-col">
-              <div className="sm:w-1/2">
-                <h3 className="mb-1 font-medium text-lg">Sebelum</h3>
-                <Image
-                  alt="Original photo of a room 1"
-                  src="/empty_bedroom.jpg"
-                  className="w-full object-cover h-64 rounded-2xl"
-                  width={300}
-                  height={300}
-                />
-              </div>
-              <div className="sm:w-1/2 sm:mt-0 mt-8">
-                <h3 className="mb-1 font-medium text-lg">
-                  Sesudah - Minimalis
-                </h3>
-                <Image
-                  alt="Generated photo of a room 1"
-                  width={300}
-                  height={300}
-                  src="/bedroom_ide.png"
-                  className="w-full object-cover h-64 rounded-2xl sm:mt-0 mt-2"
-                />
-              </div>
-            </div>
-
-            {/* Pasangan Foto 2 */}
-            <div className="flex sm:space-x-8 sm:flex-row flex-col">
-              <div className="sm:w-1/2">
-                <h3 className="mb-1 font-medium text-lg">Sebelum</h3>
-                <Image
-                  alt="Original photo of a room 2"
-                  src="/ruang-kosong.jpg"
-                  className="w-full object-cover h-64 rounded-2xl"
-                  width={300}
-                  height={300}
-                />
-              </div>
-              <div className="sm:w-1/2 sm:mt-0 mt-8">
-                <h3 className="mb-1 font-medium text-lg">
-                  Sesudah - Scandinavian
-                </h3>
-                <Image
-                  alt="Generated photo of a room 2"
-                  width={300}
-                  height={300}
-                  src="/ruang-belajar-skandanavia.jpg"
-                  className="w-full object-cover h-64 rounded-2xl sm:mt-0 mt-2"
-                />
-              </div>
-            </div>
-
-            {/* Pasangan Foto 3 */}
-            <div className="flex sm:space-x-8 sm:flex-row flex-col">
-              <div className="sm:w-1/2">
-                <h3 className="mb-1 font-medium text-lg">Sebelum</h3>
-                <Image
-                  alt="Original photo of a room 3"
-                  src="/ruang-keluarga.jpg"
-                  className="w-full object-cover h-64 rounded-2xl"
-                  width={300}
-                  height={300}
-                />
-              </div>
-              <div className="sm:w-1/2 sm:mt-0 mt-8">
-                <h3 className="mb-1 font-medium text-lg">
-                  Sesudah - Industrial
-                </h3>
-                <Image
-                  alt="Generated photo of a room 3"
-                  width={300}
-                  height={300}
-                  src="/ruang-keluarga-industrial.png"
-                  className="w-full object-cover h-64 rounded-2xl sm:mt-0 mt-2"
-                />
-              </div>
-            </div>
+            <CompareSlider
+              original={"/empty_bedroom.jpg"}
+              restored={"/bedroom_ide.png"}
+            />
           </div>
         </div>
       </main>

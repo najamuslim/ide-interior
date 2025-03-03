@@ -47,16 +47,24 @@ export default function Header() {
         </h1>
       </Link>
       <div className="flex items-center space-x-4">
-        <span className="text-white">Kuota: {credits}</span>
+        <div className="px-4 py-2 bg-blue-600 rounded-lg">
+          <span className="text-white font-medium">Kuota: {credits}</span>
+        </div>
         <Link
-          href="/pricing"
-          className="text-white hover:text-gray-300 hover:bg-[#1F2937] px-4 py-2 rounded-md transition-colors duration-200"
+          href="/desain"
+          className="text-white hover:text-blue-400 hover:bg-[#1F2937] px-4 py-2 rounded-lg transition-all duration-200 font-medium"
         >
-          Beli Credits
+          Desain
+        </Link>
+        <Link
+          href="/paket"
+          className="text-white hover:text-blue-400 hover:bg-[#1F2937] px-4 py-2 rounded-lg transition-all duration-200 font-medium"
+        >
+          Beli Paket
         </Link>
         <Link
           href="https://blog.ideinteriorai.com"
-          className="text-white hover:text-gray-300 hover:bg-[#1F2937] px-4 py-2 rounded-md transition-colors duration-200"
+          className="text-white hover:text-blue-400 hover:bg-[#1F2937] px-4 py-2 rounded-lg transition-all duration-200 font-medium"
         >
           Blog
         </Link>

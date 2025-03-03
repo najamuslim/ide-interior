@@ -47,7 +47,7 @@ declare global {
 }
 
 // Create a wrapper component that uses searchParams
-function DreamPageContent() {
+function DesainPageContent() {
   const { isSignedIn, isLoaded, userId } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,9 +80,16 @@ function DreamPageContent() {
   // Modify the useEffect for credits
   useEffect(() => {
     const getCredits = async () => {
-      if (userId) {
-        const userCredits = await fetchUserCredits(userId);
-        setUserCredits(userCredits);
+      try {
+        setLoadingCredits(true);
+        if (userId) {
+          const userCredits = await fetchUserCredits(userId);
+          setUserCredits(userCredits);
+        }
+      } catch (error) {
+        console.error("Error fetching credits:", error);
+      } finally {
+        setLoadingCredits(false);
       }
     };
 
@@ -99,7 +106,6 @@ function DreamPageContent() {
     // Cleanup on unmount
     return () => {
       unsubscribe();
-      setLoadingCredits(false);
     };
   }, [userId]);
 
@@ -136,7 +142,7 @@ function DreamPageContent() {
       // Check if user has enough credits
       if (userCredits < 1) {
         setError(
-          "Anda tidak memiliki credits yang cukup. Silakan beli credits terlebih dahulu."
+          "Anda tidak memiliki kuota yang cukup. Silakan beli kuota terlebih dahulu."
         );
         setLoading(false);
         return;
@@ -174,7 +180,7 @@ function DreamPageContent() {
         const errorData = await generationResponse.json();
         if (errorData.error === "insufficient_credits") {
           setError(
-            "Anda tidak memiliki credits yang cukup. Silakan beli credits terlebih dahulu."
+            "Anda tidak memiliki kuota yang cukup. Silakan beli kuota terlebih dahulu."
           );
           return;
         }
@@ -203,7 +209,7 @@ function DreamPageContent() {
     setRoom("Living_Room" as roomType);
 
     // Clear URL params
-    router.replace("/dream");
+    router.replace("/desain");
   };
 
   return (
@@ -222,14 +228,14 @@ function DreamPageContent() {
             <div className="flex flex-col items-center">
               <p className="text-xl">
                 <span className="font-bold text-blue-500">{userCredits}</span>{" "}
-                credits tersisa
+                kuota tersisa
               </p>
               {userCredits < 1 && (
                 <Link
-                  href="/pricing"
+                  href="/paket"
                   className="mt-2 text-blue-500 hover:text-blue-400 underline"
                 >
-                  Beli credits sekarang
+                  Beli kuota sekarang
                 </Link>
               )}
             </div>
@@ -386,10 +392,10 @@ function DreamPageContent() {
 
                   {userCredits < 1 && (
                     <Link
-                      href="/pricing"
+                      href="/paket"
                       className="block mt-4 bg-blue-600 rounded-xl text-white font-medium px-4 py-3 hover:bg-blue-500 transition"
                     >
-                      Beli Credits Sekarang
+                      Beli kuota sekarang
                     </Link>
                   )}
                 </div>
@@ -448,10 +454,10 @@ function DreamPageContent() {
                   <span className="block sm:inline">{error}</span>
                   {error.includes("credits") && (
                     <Link
-                      href="/pricing"
+                      href="/paket"
                       className="block mt-2 text-red-700 font-medium hover:underline"
                     >
-                      Beli Credits Sekarang
+                      Beli Kuota Sekarang
                     </Link>
                   )}
                 </div>
@@ -495,7 +501,7 @@ function DreamPageContent() {
 }
 
 // Create a loading component
-function DreamPageLoading() {
+function DesainPageLoading() {
   return (
     <div className="flex h-screen items-center justify-center">
       <LoadingDots color="white" style="large" />
@@ -504,10 +510,10 @@ function DreamPageLoading() {
 }
 
 // Main component with Suspense
-export default function DreamPage() {
+export default function DesainPage() {
   return (
-    <Suspense fallback={<DreamPageLoading />}>
-      <DreamPageContent />
+    <Suspense fallback={<DesainPageLoading />}>
+      <DesainPageContent />
     </Suspense>
   );
 }

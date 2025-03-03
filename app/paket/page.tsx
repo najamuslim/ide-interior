@@ -17,7 +17,7 @@ declare global {
   }
 }
 
-const PricingPage = () => {
+const PaketPage = () => {
   const { isSignedIn } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
@@ -26,44 +26,35 @@ const PricingPage = () => {
   const plans = [
     {
       name: "Starter",
-      price: "Rp 25.000",
-      credits: "5",
+      price: "Rp 49.000",
+      credits: "30",
       features: [
-        "5 Interior Design Credits",
-        "All Room Types",
-        "All Design Styles",
-        "High-Quality Results",
-        "24/7 Support",
+        "30 kuota untuk desain interior",
+        "Semua tipe ruangan",
+        "Semua gaya desain",
       ],
       id: "starter",
     },
     {
       name: "Pro",
-      price: "Rp 45.000",
-      credits: "10",
+      price: "Rp 149.000",
+      credits: "100",
       features: [
-        "10 Interior Design Credits",
-        "All Room Types",
-        "All Design Styles",
-        "High-Quality Results",
-        "24/7 Support",
-        "Priority Processing",
+        "100 kuota untuk desain interior",
+        "Semua tipe ruangan",
+        "Semua gaya desain",
       ],
       popular: true,
       id: "pro",
     },
     {
       name: "Premium",
-      price: "Rp 100.000",
-      credits: "25",
+      price: "Rp 249.000",
+      credits: "200",
       features: [
-        "25 Interior Design Credits",
-        "All Room Types",
-        "All Design Styles",
-        "High-Quality Results",
-        "24/7 Support",
-        "Priority Processing",
-        "Bulk Generation",
+        "200 kuota untuk desain interior",
+        "Semua tipe ruangan",
+        "Semua gaya desain",
       ],
       id: "premium",
     },
@@ -99,8 +90,8 @@ const PricingPage = () => {
       window.snap.pay(token, {
         onSuccess: async function (result: any) {
           console.log("Payment success:", result);
-          // Show success message and redirect to dream page
-          router.push("/dream");
+          // Show success message and redirect to desain page
+          router.push("/desain");
         },
         onPending: function (result: any) {
           console.log("Payment pending:", result);
@@ -131,12 +122,12 @@ const PricingPage = () => {
           Pilih Paket{" "}
           <span className="relative whitespace-nowrap text-blue-600">
             <SquigglyLines />
-            <span className="relative">Credits</span>
+            <span className="relative">IDEInterior</span>
           </span>
         </h1>
         <h2 className="mx-auto mt-12 max-w-xl text-lg sm:text-gray-400 text-gray-500 leading-7">
           Transformasikan ruangan Anda dengan paket yang sesuai kebutuhan.
-          Semakin banyak credits, semakin hemat!
+          Semakin banyak kuota, semakin hemat!
         </h2>
 
         {error && (
@@ -165,61 +156,62 @@ const PricingPage = () => {
                   </div>
                 </div>
               )}
-              <div className="mb-6">
-                <h3 className="text-2xl font-bold">{plan.name}</h3>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">{plan.price}</span>
+              <div className="mb-8">
+                <h3 className="text-3xl font-bold tracking-tight">
+                  {plan.name}
+                </h3>
+                <div className="mt-4 flex flex-col items-center">
+                  <span
+                    className={`text-4xl font-bold ${
+                      plan.popular ? "text-white" : "text-blue-400"
+                    }`}
+                  >
+                    {plan.credits}
+                  </span>
+                  <span
+                    className={`text-lg mt-1 ${
+                      plan.popular ? "text-blue-200" : "text-gray-400"
+                    }`}
+                  >
+                    kuota desain interior
+                  </span>
                 </div>
-                <p
-                  className={`mt-2 ${
-                    plan.popular ? "text-blue-200" : "text-gray-400"
-                  }`}
-                >
-                  {plan.credits} credits untuk desain interior
-                </p>
               </div>
               <ul className="space-y-4 mb-8 flex-1">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center">
-                    <svg
-                      className={`w-5 h-5 mr-3 ${
-                        plan.popular ? "text-white" : "text-blue-500"
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
+                  <li
+                    key={feature}
+                    className="flex items-center justify-center gap-2"
+                  >
                     {feature}
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => handlePurchase(plan.id)}
-                disabled={loading === plan.id}
-                className={`w-full py-3 px-4 rounded-xl font-medium ${
-                  plan.popular
-                    ? "bg-white text-blue-600 hover:bg-gray-100"
-                    : "bg-blue-600 text-white hover:bg-blue-500"
-                } transition`}
-              >
-                {loading === plan.id ? (
-                  <span className="flex justify-center">
-                    <LoadingDots
-                      color={plan.popular ? "blue" : "white"}
-                      style="small"
-                    />
-                  </span>
-                ) : (
-                  "Pilih Paket"
-                )}
-              </button>
+              <div className="mt-auto">
+                <div className="mb-4">
+                  <span className="text-4xl font-bold">{plan.price}</span>
+                </div>
+                <button
+                  onClick={() => handlePurchase(plan.id)}
+                  disabled={loading === plan.id}
+                  className={`w-full py-4 px-6 rounded-xl font-semibold text-lg shadow-lg transform transition duration-200 hover:scale-105 ${
+                    plan.popular
+                      ? "bg-white text-blue-600 hover:bg-gray-100"
+                      : "bg-blue-600 text-white hover:bg-blue-500"
+                  }`}
+                >
+                  {loading === plan.id ? (
+                    <span className="flex justify-center">
+                      <LoadingDots
+                        color={plan.popular ? "blue" : "white"}
+                        style="small"
+                      />
+                    </span>
+                  ) : (
+                    "Beli sekarang"
+                  )}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -229,4 +221,4 @@ const PricingPage = () => {
   );
 };
 
-export default PricingPage;
+export default PaketPage;
