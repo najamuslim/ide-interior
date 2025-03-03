@@ -85,83 +85,102 @@ async function processWebhook(body: any) {
 
       // Update user credits in the database
       console.log("Fetching existing credits from Supabase...");
-      const { data: existingCredits, error: fetchError } = await supabase
+
+      // Add timeout to the Supabase query
+      const fetchPromise = supabase
         .from("user_credits")
         .select("credits")
         .eq("user_id", userId)
         .single();
 
-      console.log("Supabase fetch response:", {
-        data: existingCredits,
-        error: fetchError,
-        userId,
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Supabase query timeout")), 10000); // 10 second timeout
       });
 
-      if (fetchError) {
-        console.error("Supabase fetch error details:", {
-          code: fetchError.code,
-          message: fetchError.message,
-          details: fetchError.details,
-          hint: fetchError.hint,
+      try {
+        const { data: existingCredits, error: fetchError } =
+          (await Promise.race([fetchPromise, timeoutPromise])) as any;
+
+        console.log("Supabase fetch response:", {
+          data: existingCredits,
+          error: fetchError,
+          userId,
         });
-        return;
-      }
 
-      console.log("Current credits:", existingCredits?.credits);
+        if (fetchError) {
+          console.error("Supabase fetch error details:", {
+            code: fetchError.code,
+            message: fetchError.message,
+            details: fetchError.details,
+            hint: fetchError.hint,
+          });
+          return;
+        }
 
-      const newCredits = (existingCredits?.credits || 0) + credits;
-      console.log("Calculated new credits:", newCredits);
+        console.log("Current credits:", existingCredits?.credits);
 
-      console.log("Attempting to upsert credits to Supabase...");
-      const { data: updateData, error: updateError } = await supabase
-        .from("user_credits")
-        .upsert(
-          {
+        const newCredits = (existingCredits?.credits || 0) + credits;
+        console.log("Calculated new credits:", newCredits);
+
+        // Add timeout to the upsert operation
+        const upsertPromise = supabase
+          .from("user_credits")
+          .upsert(
+            {
+              user_id: userId,
+              credits: newCredits,
+            },
+            {
+              onConflict: "user_id",
+            }
+          )
+          .select();
+
+        const { data: updateData, error: updateError } = (await Promise.race([
+          upsertPromise,
+          timeoutPromise,
+        ])) as any;
+
+        console.log("Supabase update response:", {
+          data: updateData,
+          error: updateError,
+          userId,
+          newCredits,
+        });
+
+        if (updateError) {
+          console.error("Supabase update error details:", {
+            code: updateError.code,
+            message: updateError.message,
+            details: updateError.details,
+            hint: updateError.hint,
+          });
+          return;
+        }
+
+        // Log the transaction
+        const { error: logError } = await supabase
+          .from("credit_transactions")
+          .insert({
             user_id: userId,
-            credits: newCredits,
-          },
-          {
-            onConflict: "user_id",
-          }
-        )
-        .select(); // Add this to see the updated data
+            order_id,
+            credits_added: credits,
+            transaction_status,
+          });
 
-      console.log("Supabase update response:", {
-        data: updateData,
-        error: updateError,
-        userId,
-        newCredits,
-      });
+        if (logError) {
+          console.error("Error logging transaction:", logError);
+        } else {
+          console.log("Transaction logged successfully");
+        }
 
-      if (updateError) {
-        console.error("Supabase update error details:", {
-          code: updateError.code,
-          message: updateError.message,
-          details: updateError.details,
-          hint: updateError.hint,
-        });
+        // Trigger credit update to refresh the UI
+        triggerCreditUpdate(userId);
+        console.log("Credit update triggered for UI refresh");
+      } catch (error) {
+        console.error("Supabase operation error:", error);
         return;
       }
-
-      // Log the transaction
-      const { error: logError } = await supabase
-        .from("credit_transactions")
-        .insert({
-          user_id: userId,
-          order_id,
-          credits_added: credits,
-          transaction_status,
-        });
-
-      if (logError) {
-        console.error("Error logging transaction:", logError);
-      } else {
-        console.log("Transaction logged successfully");
-      }
-
-      // Trigger credit update to refresh the UI
-      triggerCreditUpdate(userId);
-      console.log("Credit update triggered for UI refresh");
     } else {
       console.log(
         "Transaction status not settlement/capture:",

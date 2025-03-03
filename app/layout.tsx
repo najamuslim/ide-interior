@@ -144,6 +144,11 @@ export default function RootLayout({
             strategy="beforeInteractive"
           />
 
+          {/* Google Analytics and Ads */}
+          <script
+            async
+            src="https://www.googletagmanager.com/gtag/js?id=G-SVVJJV1SPD"
+          ></script>
           <script
             async
             src="https://www.googletagmanager.com/gtag/js?id=AW-16905274859"
@@ -154,6 +159,7 @@ export default function RootLayout({
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
                 gtag('js', new Date());
+                gtag('config', 'G-SVVJJV1SPD');
                 gtag('config', 'AW-16905274859');
               `,
             }}
