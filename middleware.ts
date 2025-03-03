@@ -1,12 +1,20 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-export default clerkMiddleware();
+const isPublicRoute = createRouteMatcher(["/api/midtrans-webhook"]);
+
+export default function middleware(req: any) {
+  if (isPublicRoute(req)) {
+    return NextResponse.next();
+  }
+
+  return clerkMiddleware(req);
+}
 
 export const config = {
   matcher: [
     // Skip Next.js internals and all static files
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Only run on specific API routes, excluding midtrans-webhook
-    "/api/((?!midtrans-webhook).*)",
+    "/api/(.*)",
   ],
 };
