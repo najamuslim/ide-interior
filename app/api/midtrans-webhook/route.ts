@@ -33,6 +33,14 @@ async function processWebhook(body: any) {
     const serverKey = process.env.MIDTRANS_SERVER_KEY;
     const signature = body.signature_key;
 
+    console.log("Verifying signature with:", {
+      orderId: body.order_id,
+      statusCode: body.status_code,
+      grossAmount: body.gross_amount,
+      hasServerKey: !!serverKey,
+      receivedSignature: signature,
+    });
+
     const signatureKey =
       body.order_id + body.status_code + body.gross_amount + serverKey;
     const expectedSignature = crypto
@@ -41,9 +49,14 @@ async function processWebhook(body: any) {
       .digest("hex");
 
     if (signature !== expectedSignature) {
-      console.error("Invalid signature received");
+      console.error("Signature mismatch:", {
+        received: signature,
+        expected: expectedSignature,
+      });
       return;
     }
+
+    console.log("Signature verified successfully");
 
     // Handle the notification
     const { transaction_status, order_id } = body;
@@ -60,21 +73,32 @@ async function processWebhook(body: any) {
       transaction_status === "settlement" ||
       transaction_status === "capture"
     ) {
+      console.log("Transaction is successful, proceeding with credit update");
+
       if (!metadata || !metadata.userId || !metadata.credits) {
         console.error("Missing required metadata:", metadata);
         return;
       }
 
       const { userId, credits } = metadata;
+      console.log("Starting credit update for user:", userId);
 
       // Update user credits in the database
-      const { data: existingCredits } = await supabase
+      const { data: existingCredits, error: fetchError } = await supabase
         .from("user_credits")
         .select("credits")
         .eq("user_id", userId)
         .single();
 
+      if (fetchError) {
+        console.error("Error fetching existing credits:", fetchError);
+        return;
+      }
+
+      console.log("Current credits:", existingCredits?.credits);
+
       const newCredits = (existingCredits?.credits || 0) + credits;
+      console.log("Calculated new credits:", newCredits);
 
       const { error: updateError } = await supabase.from("user_credits").upsert(
         {
@@ -91,6 +115,8 @@ async function processWebhook(body: any) {
         return;
       }
 
+      console.log("Credits updated successfully");
+
       // Log the transaction
       const { error: logError } = await supabase
         .from("credit_transactions")
@@ -103,10 +129,18 @@ async function processWebhook(body: any) {
 
       if (logError) {
         console.error("Error logging transaction:", logError);
+      } else {
+        console.log("Transaction logged successfully");
       }
 
       // Trigger credit update to refresh the UI
       triggerCreditUpdate(userId);
+      console.log("Credit update triggered for UI refresh");
+    } else {
+      console.log(
+        "Transaction status not settlement/capture:",
+        transaction_status
+      );
     }
   } catch (error) {
     console.error("Error processing webhook:", error);
