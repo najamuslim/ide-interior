@@ -27,8 +27,8 @@ export default function HomePage() {
         >
           Mulai Sekarang!
         </Link>
-        <div className="flex justify-between items-center w-full flex-col sm:mt-10 mt-6">
-          <div className="flex flex-col space-y-8 sm:space-y-10 mt-4 mb-16 w-full px-4 sm:px-0">
+        <div className="flex items-center justify-center w-full sm:mt-10 mt-6">
+          <div className="flex flex-col items-center mt-4 mb-16">
             <CompareSlider
               original={"/empty_bedroom.jpg"}
               restored={"/bedroom_ide.png"}

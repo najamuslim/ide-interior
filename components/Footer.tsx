@@ -7,6 +7,12 @@ export default function Footer() {
         <Link href="/privacy" className="hover:text-gray-300 transition">
           Kebijakan Privasi
         </Link>
+        <a
+          href="mailto:ideinteriorai@gmail.com"
+          className="hover:text-gray-300 transition"
+        >
+          Bantuan
+        </a>
       </div>
     </footer>
   );
