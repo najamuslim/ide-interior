@@ -179,7 +179,7 @@ function DesainPageContent() {
       <Header />
       <main className="flex flex-1 w-full flex-col items-center justify-center text-center px-4 mt-4 sm:mb-0 mb-8">
         <h1 className="mx-auto max-w-4xl font-display text-4xl font-bold tracking-normal text-slate-100 sm:text-6xl mb-5">
-          Desain ruang <span className="text-blue-600">impian</span> anda
+          Desain ruang <span className="text-blue-600">impian</span> Anda
         </h1>
 
         {/* Credits display */}
@@ -313,7 +313,21 @@ function DesainPageContent() {
                         input.type = "file";
                         input.accept = "image/*";
                         input.capture = "environment";
-                        input.onchange = (e) => handleFileChange(e as any);
+                        input.style.display = "none";
+                        document.body.appendChild(input);
+
+                        input.onchange = async (e) => {
+                          try {
+                            await handleFileChange(e as any);
+                          } catch (error: any) {
+                            setError(
+                              `Error: ${error.message || "Unknown error"}`
+                            );
+                          } finally {
+                            document.body.removeChild(input);
+                          }
+                        };
+
                         input.click();
                       }}
                       className={`rounded-xl font-medium px-4 py-3 transition ${
@@ -332,7 +346,21 @@ function DesainPageContent() {
                         const input = document.createElement("input");
                         input.type = "file";
                         input.accept = "image/*";
-                        input.onchange = (e) => handleFileChange(e as any);
+                        input.style.display = "none";
+                        document.body.appendChild(input);
+
+                        input.onchange = async (e) => {
+                          try {
+                            await handleFileChange(e as any);
+                          } catch (error: any) {
+                            setError(
+                              `Error: ${error.message || "Unknown error"}`
+                            );
+                          } finally {
+                            document.body.removeChild(input);
+                          }
+                        };
+
                         input.click();
                       }}
                       className={`rounded-xl font-medium px-4 py-3 transition ${
