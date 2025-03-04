@@ -28,6 +28,7 @@ const PaketPage = () => {
   const plans = [
     {
       name: "Starter",
+      originalPrice: "Rp 99.000",
       price: "Rp 49.000",
       credits: "30",
       features: [
@@ -35,10 +36,12 @@ const PaketPage = () => {
         "Semua tipe ruangan",
         "Semua gaya desain",
       ],
+      discount: "50%",
       id: "starter",
     },
     {
       name: "Pro",
+      originalPrice: "Rp 299.000",
       price: "Rp 149.000",
       credits: "100",
       features: [
@@ -46,11 +49,13 @@ const PaketPage = () => {
         "Semua tipe ruangan",
         "Semua gaya desain",
       ],
+      discount: "50%",
       popular: true,
       id: "pro",
     },
     {
       name: "Premium",
+      originalPrice: "Rp 499.000",
       price: "Rp 249.000",
       credits: "250",
       features: [
@@ -58,6 +63,7 @@ const PaketPage = () => {
         "Semua tipe ruangan",
         "Semua gaya desain",
       ],
+      discount: "50%",
       id: "premium",
     },
   ];
@@ -189,8 +195,17 @@ const PaketPage = () => {
                 ))}
               </ul>
               <div className="mt-auto">
-                <div className="mb-4">
-                  <span className="text-4xl font-bold">{plan.price}</span>
+                <div className="mb-4 flex flex-col items-center">
+                  <span
+                    className={`text-lg line-through mt-1 ${
+                      plan.popular ? "text-blue-200" : "text-gray-400"
+                    }`}
+                  >
+                    {plan.originalPrice}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-4xl font-bold">{plan.price}</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => handlePurchase(plan.id)}
