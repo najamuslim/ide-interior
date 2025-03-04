@@ -7,6 +7,7 @@ import Footer from "../../components/Footer";
 import SquigglyLines from "../../components/SquigglyLines";
 import LoadingDots from "../../components/LoadingDots";
 import { useAuth } from "@clerk/nextjs";
+import { useCredits } from "../../contexts/CreditsContext";
 
 // Add type for window.snap
 declare global {
@@ -22,6 +23,7 @@ const PaketPage = () => {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { refreshCredits } = useCredits();
 
   const plans = [
     {
@@ -90,6 +92,7 @@ const PaketPage = () => {
       window.snap.pay(token, {
         onSuccess: async function (result: any) {
           // Show success message and redirect to desain page
+          refreshCredits();
           router.push("/desain");
         },
         onPending: function (result: any) {

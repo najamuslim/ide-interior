@@ -28,8 +28,7 @@ import { useAuth } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import imageCompression from "browser-image-compression";
 import Link from "next/link";
-import { fetchUserCredits, onCreditUpdate } from "../../utils/fetchUserCredits";
-import { triggerCreditUpdate } from "../../utils/fetchUserCredits";
+import { useCredits } from "../../contexts/CreditsContext";
 
 const uploadManager = new UploadManager({
   apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
@@ -68,46 +67,13 @@ function DesainPageContent() {
       : "Living_Room") as roomType
   );
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
-  const [userCredits, setUserCredits] = useState<number>(0);
-  const [loadingCredits, setLoadingCredits] = useState<boolean>(true);
+  const { credits, loading: loadingCredits, refreshCredits } = useCredits();
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
       redirect("/sign-in");
     }
   }, [isLoaded, isSignedIn]);
-
-  // Modify the useEffect for credits
-  useEffect(() => {
-    const getCredits = async () => {
-      if (userId) {
-        try {
-          setLoadingCredits(true);
-          // Add small delay to ensure Header's fetch completes first
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          const userCredits = await fetchUserCredits(userId);
-          setUserCredits(userCredits);
-        } catch (error) {
-          console.error("Error fetching credits:", error);
-        } finally {
-          setLoadingCredits(false);
-        }
-      }
-    };
-
-    // Initial fetch
-    getCredits();
-
-    // Register for credit updates
-    const unsubscribe = onCreditUpdate((updatedUserId: string) => {
-      if (updatedUserId === userId) {
-        getCredits();
-      }
-    });
-
-    // Cleanup on unmount
-    return () => unsubscribe();
-  }, [userId]);
 
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -140,7 +106,7 @@ function DesainPageContent() {
       setOriginalPhoto(imageUrl);
 
       // Check if user has enough credits
-      if (userCredits < 1) {
+      if (credits < 1) {
         setError(
           "Anda tidak memiliki kuota yang cukup. Silakan beli kuota terlebih dahulu."
         );
@@ -187,8 +153,7 @@ function DesainPageContent() {
 
       const generatedImage = await generationResponse.json();
       setRestoredImage(generatedImage);
-
-      triggerCreditUpdate(userId!);
+      refreshCredits();
     } catch (error) {
       console.error("Error:", error);
       setError("Terjadi kesalahan saat menghasilkan gambar");
@@ -224,10 +189,10 @@ function DesainPageContent() {
           ) : (
             <div className="flex flex-col items-center">
               <p className="text-xl">
-                <span className="font-bold text-blue-500">{userCredits}</span>{" "}
-                kuota tersisa
+                <span className="font-bold text-blue-500">{credits}</span> kuota
+                tersisa
               </p>
-              {userCredits < 1 && (
+              {credits < 1 && (
                 <Link
                   href="/paket"
                   className="mt-2 text-blue-500 hover:text-blue-400 underline"
@@ -335,7 +300,7 @@ function DesainPageContent() {
                       type="file"
                       accept="image/*"
                       onChange={handleFileChange}
-                      disabled={userCredits < 1}
+                      disabled={credits < 1}
                     />
                   </div>
 
@@ -343,7 +308,7 @@ function DesainPageContent() {
                   <div className="flex flex-col space-y-4 sm:hidden">
                     <button
                       onClick={() => {
-                        if (userCredits < 1) return;
+                        if (credits < 1) return;
                         const input = document.createElement("input");
                         input.type = "file";
                         input.accept = "image/*";
@@ -352,18 +317,18 @@ function DesainPageContent() {
                         input.click();
                       }}
                       className={`rounded-xl font-medium px-4 py-3 transition ${
-                        userCredits < 1
+                        credits < 1
                           ? "bg-gray-600 text-gray-300 cursor-not-allowed"
                           : "bg-blue-600 text-white hover:bg-blue-500"
                       }`}
-                      disabled={userCredits < 1}
+                      disabled={credits < 1}
                     >
                       Ambil Foto
                     </button>
 
                     <button
                       onClick={() => {
-                        if (userCredits < 1) return;
+                        if (credits < 1) return;
                         const input = document.createElement("input");
                         input.type = "file";
                         input.accept = "image/*";
@@ -371,23 +336,23 @@ function DesainPageContent() {
                         input.click();
                       }}
                       className={`rounded-xl font-medium px-4 py-3 transition ${
-                        userCredits < 1
+                        credits < 1
                           ? "bg-gray-600 text-gray-300 cursor-not-allowed"
                           : "bg-gray-600 text-white hover:bg-gray-500"
                       }`}
-                      disabled={userCredits < 1}
+                      disabled={credits < 1}
                     >
                       Pilih dari Galeri
                     </button>
                   </div>
 
                   <p className="text-sm text-gray-400">
-                    {userCredits < 1
+                    {credits < 1
                       ? "Anda membutuhkan minimal 1 credit untuk menghasilkan gambar"
                       : "Anda dapat mengambil foto baru atau memilih dari galeri"}
                   </p>
 
-                  {userCredits < 1 && (
+                  {credits < 1 && (
                     <Link
                       href="/paket"
                       className="block mt-4 bg-blue-600 rounded-xl text-white font-medium px-4 py-3 hover:bg-blue-500 transition"

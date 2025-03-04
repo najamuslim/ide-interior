@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "../../../utils/supabaseClient";
 import crypto from "crypto";
-import { triggerCreditUpdate } from "../../../utils/fetchUserCredits";
 
 export async function POST(request: Request) {
   try {
@@ -157,10 +156,6 @@ async function processWebhook(body: any) {
       } else {
         console.log("Transaction logged successfully");
       }
-
-      // Trigger credit update to refresh the UI
-      triggerCreditUpdate(userId);
-      console.log("Credit update triggered for UI refresh");
     } else {
       console.log(
         "Transaction status not settlement/capture:",
