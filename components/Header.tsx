@@ -5,32 +5,11 @@ import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { fetchUserCredits, onCreditUpdate } from "../utils/fetchUserCredits";
+import { useCredits } from "../contexts/CreditsContext";
 
 export default function Header() {
   const { userId } = useAuth();
-  const [credits, setCredits] = useState(0);
-
-  useEffect(() => {
-    const getCredits = async () => {
-      if (userId) {
-        const userCredits = await fetchUserCredits(userId);
-        setCredits(userCredits);
-      }
-    };
-
-    // Initial fetch
-    getCredits();
-
-    // Register for credit updates
-    const unsubscribe = onCreditUpdate((updatedUserId) => {
-      if (updatedUserId === userId) {
-        getCredits();
-      }
-    });
-
-    // Cleanup on unmount
-    return () => unsubscribe();
-  }, [userId]);
+  const { credits } = useCredits();
 
   return (
     <header className="flex justify-between items-center w-full mt-5 border-b-2 pb-7 sm:px-4 px-2">

@@ -9,6 +9,7 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import "../styles/globals.css";
+import { CreditsProvider } from "../contexts/CreditsContext";
 
 // SEO Constants
 const siteConfig = {
@@ -177,7 +178,7 @@ export default function RootLayout({
           />
         </head>
         <body className="bg-[#17181C] text-white">
-          {children}
+          <CreditsProvider>{children}</CreditsProvider>
           <Analytics />
         </body>
       </html>
