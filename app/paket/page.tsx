@@ -50,9 +50,9 @@ const PaketPage = () => {
     {
       name: "Premium",
       price: "Rp 249.000",
-      credits: "200",
+      credits: "250",
       features: [
-        "200 kuota untuk desain interior",
+        "250 kuota untuk desain interior",
         "Semua tipe ruangan",
         "Semua gaya desain",
       ],
@@ -89,12 +89,10 @@ const PaketPage = () => {
       // Open Snap popup
       window.snap.pay(token, {
         onSuccess: async function (result: any) {
-          console.log("Payment success:", result);
           // Show success message and redirect to desain page
           router.push("/desain");
         },
         onPending: function (result: any) {
-          console.log("Payment pending:", result);
           setError("Pembayaran dalam proses");
           setLoading(null);
         },

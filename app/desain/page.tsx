@@ -174,8 +174,6 @@ function DesainPageContent() {
         }),
       });
 
-      console.log(generationResponse);
-
       if (!generationResponse.ok) {
         const errorData = await generationResponse.json();
         if (errorData.error === "insufficient_credits") {
@@ -188,7 +186,6 @@ function DesainPageContent() {
       }
 
       const generatedImage = await generationResponse.json();
-      console.log(generatedImage);
       setRestoredImage(generatedImage);
 
       triggerCreditUpdate(userId!);

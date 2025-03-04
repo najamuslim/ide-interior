@@ -17,15 +17,15 @@ const ratelimit = redis
 const CREDIT_PACKAGES = {
   starter: {
     credits: 30,
-    price: 10000,
+    price: 49000,
   },
   pro: {
     credits: 100,
-    price: 10000,
+    price: 149000,
   },
   premium: {
-    credits: 200,
-    price: 10000,
+    credits: 250,
+    price: 249000,
   },
 };
 
