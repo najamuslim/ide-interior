@@ -80,16 +80,18 @@ function DesainPageContent() {
   // Modify the useEffect for credits
   useEffect(() => {
     const getCredits = async () => {
-      try {
-        setLoadingCredits(true);
-        if (userId) {
+      if (userId) {
+        try {
+          setLoadingCredits(true);
+          // Add small delay to ensure Header's fetch completes first
+          await new Promise((resolve) => setTimeout(resolve, 100));
           const userCredits = await fetchUserCredits(userId);
           setUserCredits(userCredits);
+        } catch (error) {
+          console.error("Error fetching credits:", error);
+        } finally {
+          setLoadingCredits(false);
         }
-      } catch (error) {
-        console.error("Error fetching credits:", error);
-      } finally {
-        setLoadingCredits(false);
       }
     };
 
@@ -104,9 +106,7 @@ function DesainPageContent() {
     });
 
     // Cleanup on unmount
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [userId]);
 
   const handleFileChange = async (
