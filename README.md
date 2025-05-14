@@ -1,6 +1,6 @@
-# Ide Interior - Redesain Ruangan Anda dengan AI
+# Ide Interior - Redesign Your Space with AI
 
-Ide Interior adalah aplikasi yang membantu Anda mendesain ulang ruangan menggunakan kecerdasan buatan (AI). Cukup unggah foto ruangan Anda dan dapatkan hasil redesain yang menarik.
+Ide Interior is an application that helps you redesign your space using artificial intelligence (AI). Just upload a photo of your room and get attractive redesign results.
 
 ## Lisensi
 
