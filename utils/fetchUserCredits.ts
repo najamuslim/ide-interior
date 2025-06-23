@@ -18,7 +18,7 @@ export async function fetchUserCredits(userId: string): Promise<number> {
         .from("user_credits")
         .insert({
           user_id: userId,
-          credits: 1, // Give 1 free credit
+          credits: 5, // Give 1 free credit
         })
         .select("credits")
         .single();
@@ -31,12 +31,12 @@ export async function fetchUserCredits(userId: string): Promise<number> {
       // Log the free credit transaction
       await supabase.from("credit_transactions").insert({
         user_id: userId,
-        credits_added: 1,
+        credits_added: 5,
         transaction_status: "free_credit",
         order_id: `free_${userId}`,
       });
 
-      return newUser?.credits || 1;
+      return newUser?.credits || 5;
     }
 
     if (error) {
