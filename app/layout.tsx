@@ -177,6 +177,9 @@ export default function RootLayout({
               `,
             }}
           />
+
+          <meta name="msvalidate.01" content="0AA0BF0DAA3606B94D4549A3755748DC" />
+          
           {/* START Facebook Pixel */}
           {FB_PIXEL_ID && ( // Pastikan Pixel ID ada sebelum merender script
               <>
